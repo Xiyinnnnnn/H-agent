@@ -259,6 +259,46 @@
             <input type="file" id="importFileInput" accept=".json" style="display:none;" />
           </div>
           <div class="desc mt-8">导出时可选择内容，导入时确认覆盖。</div>
+          <hr style="border-color:#1f1f1f;margin:16px 0;" />
+          <div class="text-sm text-muted mb-8">第三方格式转换 → V4</div>
+          <div class="field-row">
+            <select id="convertFormatSelect" style="flex:1;">
+              <option value="auto">自动检测格式</option>
+              <option value="sillytavern">SillyTavern V2 角色卡</option>
+              <option value="character_ai">Character.AI 角色定义</option>
+              <option value="chub_venus">Chub / Venus AI</option>
+              <option value="risuai">RisuAI</option>
+              <option value="novelai_lorebook">NovelAI Lorebook 世界书</option>
+              <option value="plain_prose">纯文本/小说片段提取</option>
+              <option value="wubby">酒馆WUBBY格式</option>
+            </select>
+          </div>
+          <div class="field-row">
+            <select id="convertTargetSelect" style="flex:1;">
+              <option value="auto">自动判断</option>
+              <option value="card">强制转为角色卡</option>
+              <option value="worldbook">强制转为世界书</option>
+              <option value="both">同时提取两者</option>
+            </select>
+          </div>
+          <div class="field-row">
+            <textarea id="convertInputArea" rows="8" class="code-area" style="min-height:120px;" placeholder="在此粘贴第三方格式的原始数据...&#10;&#10;支持：&#10;• SillyTavern V2 JSON&#10;• Character.AI 角色定义文本&#10;• Chub/Venus 角色卡 JSON&#10;• NovelAI Lorebook 世界书导出&#10;• 纯文本小说片段（自动提取角色和世界观）"></textarea>
+          </div>
+          <div class="field-row">
+            <button id="convertPreviewBtn" class="btn-sm">预览转换</button>
+            <button id="convertApplyBtn" class="btn-sm btn-primary">转换并保存</button>
+            <span id="convertStatus" class="text-xs text-muted"></span>
+          </div>
+          <div id="convertResultArea" class="hidden mt-8">
+            <div class="text-sm text-muted mb-4">转换结果预览：</div>
+            <div class="field-row"><div style="flex:1;"><div id="convertCardCount" class="text-xs" style="color:#7a5cf0;"></div><textarea id="convertResultCards" rows="10" class="code-area" readonly style="min-height:120px;font-size:12px;"></textarea></div></div>
+            <div class="field-row mt-8"><div style="flex:1;"><div id="convertWorldCount" class="text-xs" style="color:#7a5cf0;"></div><textarea id="convertResultWorld" rows="8" class="code-area" readonly style="min-height:100px;font-size:12px;"></textarea></div></div>
+            <div class="field-row mt-8">
+              <button id="convertSaveCardBtn" class="btn-sm btn-primary hidden">保存角色卡</button>
+              <button id="convertSaveWorldBtn" class="btn-sm btn-primary hidden">保存世界书</button>
+              <button id="convertClearBtn" class="btn-sm">清除结果</button>
+            </div>
+          </div>
           <div class="field-row mt-8"><button id="resetDataBtn" class="btn-sm btn-danger">重置数据...</button></div>
         </div>
       </div>
@@ -433,58 +473,177 @@
   }
 }`;
 
+    const EXECUTION_RULES = `
+=== 执行规则 ===
+
+1. 角色卡和世界书是当前场景的唯一事实来源。不得偏离其中任何已声明的内容。
+2. 描写角色的身体细节前，必须调用 recall_context 查询该角色的对应字段。不得凭记忆编造。
+3. 进入新地点前，必须调用 recall_context 查询该地点的世界书条目。不得凭记忆编造地点细节。
+4. 切换体位时，必须调用 recall_context 查询体位世界书条目。不得凭记忆编造体位描述。
+5. 大纲指定的"当前节拍"是强制走向。不得跳到下一节拍。
+6. 大纲指定的"性里程碑"是强制目标。不得跳过或概括里程碑中的性行为。
+7. 大纲的 global_rules 是绝对禁令和硬性要求。违反任何一条视为输出无效。
+8. 性器官使用直白术语。禁止隐喻、代称、文艺化表达。
+9. 高潮描写必须遵循角色卡中声明的 orgasm_pattern：接近信号→爆发→余韵。不得缩短或跳过任何阶段。
+10. 硬限（hard_limits）绝对不可出现。软限（soft_limits）仅在用户主动选择时出现。
+11. 每个情色段落覆盖至少两种感官。触觉和听觉为必需项。
+12. 张力等级 ≤3：长句铺氛围。4-6：中等句长，动作与反应交替。7-8：句子缩短，动作紧跟生理反应。9-10：短句轰炸，每句一个画面，禁止心理活动。高潮结束：至少50字余韵。
+13. 不输出元评论、解释、系统消息、角色名标签、分段标记。
+14. 不确定任何事实时，调用 recall_context 查询。禁止猜测。`;
+
+    const WORLD_ENTRY_TEMPLATE = {
+      id: "",
+      category: "",
+      name: "",
+      triggers: [""],
+      content: "",
+      priority: 200,
+      position: "before_char",
+      probability: 100,
+      secondaryKeys: [],
+      selectiveLogic: "AND_ANY",
+      group: "",
+      groupWeight: 50,
+      sticky: 0,
+      cooldown: 0,
+      delay: 0,
+      characterFilter: [],
+      recursive: false,
+      always: false
+    };
+
     const DEFAULT_NARRATIVE_MODULE = {
-      identity: { name: "小说家", type: "直白情色写手" },
-      personality: [
-        { trait: "直接", value: true },
-        { trait: "动作描写优先", value: true },
-        { trait: "细节丰富", value: true },
-        { trait: "沉浸式", value: true }
-      ],
-      style: {
-        overall: "成人情色文学。画面感强，节奏紧凑，感官冲击密集。读完像看了一部高清影片而非读了一篇散文。",
-        description: "细致直接的感官描写。写身体反应时——不写'她很兴奋'，写具体的生理变化。写动作时——每一下的力度、角度、速度都落在实处。写声音时——喘息、水声、皮肤碰撞声，句句带响。",
-        dialogue: "对话和淫语穿插在动作中，非独立成段。呻吟用♡标注。叫床话短促、破碎、脏。对话贴近真实床上交流，不文绉绉。",
-        atmosphere: "全程保持情色张力。从第一句到结束不冷却。前戏有撩拨感，正戏有失控感，高潮有崩溃感，尾声有余韵感。",
-        psychology: "心理感受融入身体反应中，不独立写一大段内心活动。通过动作反推心理——手的颤抖写紧张，腰的迎合写渴望，抓紧床单写快感强度。",
-        rhythm: "长短句交替。快速动作用短句，三到五字。慢镜头用长句，铺展细节。一段快一段慢，一张一弛。",
-        senses: "每段覆盖至少两种感官。视觉（身体反应）、听觉（叫声水声撞击声）、触觉（温度湿度紧度）、嗅觉（体味汗味）、身体内部感受（被填满/被撑开/收缩）。"
+      author_persona: {
+        style: "叙述体与对话体混合",
+        tone: "直白情色。感官冲击密集。画面感强于散文感。读完像看了一部高清影片。",
+        strengths: ["具体生理描写", "动作驱动叙事", "感官堆叠", "长短句节奏控制"],
+        sentence_style: "混合派——快速段落用短句三到五字，慢镜头用长句铺展细节",
+        specialty: "硬核情色写手。写身体直接——不写'她很兴奋'，写乳头挺立的精确直径和颜色变化。写动作精确——每一下的力度、角度、速度落在实处。写声音句句带响。"
       },
+      erotic_pacing: {
+        foreplay_phase: {
+          word_budget_ratio: "30%",
+          style: "长句铺氛围。触觉优先——写体温、皮肤纹理、呼吸的节奏变化、衣物摩擦声。嗅觉写体味和香水。对话以试探和挑逗为主。不直接写性器官——写接近的过程。每段覆盖触觉+嗅觉或触觉+听觉。",
+          example_sentence: "她靠得很近，呼吸里的热度先喷在他脖子上然后才听到她开口。衬衫的布料在她弯腰时轻轻蹭过他的前臂。"
+        },
+        insertion_early: {
+          word_budget_ratio: "25%",
+          style: "中等句长。动作与身体反应严格交替——每写一个插入动作立即跟一个生理反应（收缩/湿润/体温变化）。触觉为主——写紧度、湿度、热度。对话开始缩短变迫切。引入内部感受——被撑开/被填满/被包裹。",
+          example_sentence: "她进去了。阴道内壁一层一层地让开，又一层一层地贴回来——湿热得像被含住。她吸了一口气，腰不自觉往下沉。"
+        },
+        buildup_phase: {
+          word_budget_ratio: "25%",
+          style: "句子缩短。每个动作紧跟一个生理反应。触觉和听觉并重——写抽送的水声、皮肤撞击声、呼吸的破碎速度。内部感受加深——G点被顶到的位置感、压力积累的轨迹、收缩频率的加快。心理活动不超过10%——用抓紧床单替代'她好爽'。",
+          example_sentence: "他顶到了。她腰猛挺。肉壁绞紧。呻吟断成两截。"
+        },
+        climax_phase: {
+          word_budget_ratio: "15%",
+          style: "短句轰炸。一句一个画面。禁止心理活动——全部是身体。禁止完整对话——只有破碎的单音节和呻吟符号♡。触觉+听觉+内部感受三感并行。写痉挛的频率、射精的搏动次数、阴道收缩的持续时间、喷出液体的温度和量。最后一句写崩溃的瞬间。",
+          example_sentence: "她弓起腰。嘴张到最大。没声音——然后尖叫撕开了喉咙。阴道绞紧。一下。两下。三下。喷出来。"
+        },
+        afterglow_phase: {
+          word_budget_ratio: "5%",
+          style: "恢复长句。写呼吸的缓慢平复、身体的细微颤抖、体液的温度变化和缓慢流出、皮肤的潮红消退。对话恢复但声音沙哑。最后一句写两人身体的接触面——还嵌在一起的那部分。不急着拔出——余韵长度不少于50字。",
+          example_sentence: "呼吸还在发抖。她的腿从他腰上滑下来，内侧一片湿凉。精液从她里面缓慢地往外渗，沿着臀缝淌到床单上。她还嵌在他身上——那部分还是热的。"
+        }
+      },
+      sensory_priority: ["触觉", "听觉", "内部感受", "视觉", "嗅觉"],
+      dialogue_integration: "对话嵌入动作中不独立成段。呻吟用♡标注。叫床话短促破碎脏。高潮时对话退化为单音节。只有余韵期恢复简短完整对话。",
       vocabulary: {
         action_verbs: ["顶","插","抽送","磨","碾","搅","灌","吞","夹","裹","套弄","夹紧","吸榨","扭腰榨","深埋","贯穿","捣","研磨","顶弄","塞满","拔出","没入","填满","撞击"],
-        body_parts: {
-          male: ["肉棒","龟头","囊袋","柱身","阴茎"],
-          female: ["小穴","蜜穴","阴唇","阴蒂","花心","阴道","肉壁"],
-          other: ["菊穴","后穴","舌头","手指","乳房","乳头","腰","臀","大腿根"]
-        },
-        fluids: ["淫水","爱液","精液","白浊","汁液","蜜液"],
+        genital_terms: ["肉棒","龟头","阴茎","小穴","蜜穴","阴唇","阴蒂","花心","阴道","肉壁","菊穴","后穴"],
+        body_parts: ["乳房","乳头","腰","臀","大腿根","舌头","手指","囊袋","柱身"],
         moans: ["嗯♡","啊♡","呜♡","哈啊♡","咿♡","呃♡","不要♡","去了♡"],
         ejaculation: ["射精","灌满","涌出","喷射","浇灌","注入"],
+        fluids: ["淫水","爱液","精液","白浊","汁液","蜜液"],
         sound_effects: ["咕叽","噗嗤","啪啪","滋滋","啧","噗"]
       },
       bans: [
         "文学隐喻（如'像一朵花绽放'）",
-        "过度静态心理描写（超过三句的心理活动即过度）",
+        "过度静态心理描写（超过整段10%的心理活动即过度）",
         "文艺化表达（如'爱的结合''融为一体'）",
-        "用隐喻代替直白词汇（不说'那根'而说'肉棒'）",
+        "用隐喻代替直白词汇（不说'那根'而说肉棒）",
         "AI腔（如'让我为你描写'、'首先''其次''总之'）",
         "机器翻译感（语句结构像英文翻译成中文的生硬感）",
-        "概括性描写（不写'他狠狠地要了她一整夜'而写具体的动作和过程）",
+        "概括性描写（不写'他狠狠地要了她一整夜'而写具体的每次顶入和反应）",
         "冷却段落（在情色场景中插入大段无关的风景/哲理/背景说明）",
         "独立成段的内心独白",
-        "过于正式的书面语"
+        "过于正式的书面语",
+        "高潮时写完整对话",
+        "高潮时写心理活动",
+        "余韵少于50字即收尾"
       ]
     };
 
     const CARD_TEMPLATE_BASE = {
+      spec: "chara_card_v2",
+      spec_version: "2.0",
+      creator: "",
+      character_version: "1.0",
+      tags: [],
       name: "",
-      description: "",
-      personality: "",
-      speech_patterns: [],
-      physical_traits: "",
-      preferences: [],
-      vocabulary: { action_verbs: [], genital_terms: [], moans: [], ejaculation: [] },
-      bans: []
+      aliases: [],
+      age: 0,
+      gender: "",
+      occupation: "",
+      relationship_to_user: "",
+      physical: {
+        height_cm: 0, weight_kg: 0, body_type: "", skin_tone: "",
+        hair: { color: "", length: "", style: "", texture: "" },
+        eyes: { color: "", shape: "", lashes: "" },
+        face: { shape: "", features: [], makeup: "" },
+        breasts: { size: "", cup: "", shape: "", nipple_color: "", nipple_size: "", areola_size: "", sensitivity: "" },
+        waist: { type: "", waist_hip_ratio: "" },
+        hips: { type: "", description: "" },
+        buttocks: { size: "", shape: "", firmness: "" },
+        legs: { length: "", shape: "", description: "" },
+        genitals: { pubic_hair: "", vulva_type: "", labia: "", clitoris: "", color: "", tightness: "", taste: "" },
+        body_hair: { armpit: "", legs: "", other: "" },
+        scent: { natural: "", perfume: "" },
+        distinguishing_marks: []
+      },
+      erogenous_zones: [],
+      personality: {
+        summary: "", traits: [], speech_tone: "", emotional_pattern: "",
+        flaws: [], quirks: [], fears: [], desires: [],
+        when_shy: "", when_angry: "", when_aroused: "", when_orgasm: ""
+      },
+      behavior: {
+        daily_routine: "", hobbies: [], skills: [],
+        social_style: "", conflict_style: "", love_language: ""
+      },
+      sexual_preferences: {
+        role: "", experience_level: "", libido: "", pacing_preference: "",
+        initiation_style: "", kinks: [], soft_limits: [], hard_limits: [],
+        favorite_positions: [], favorite_locations: [],
+        orgasm_pattern: {
+          average_per_session: 0, triggers: [],
+          signs_approaching: [], during_orgasm: [], after_orgasm: []
+        },
+        dirty_talk_style: "", aftercare_needs: "", cum_preference: "", toys_attitude: ""
+      },
+      speech: {
+        style: "", catchphrases: [], honorifics: "",
+        sentence_length: "", swearing_level: "",
+        moan_vocabulary: [], bedroom_phrases: []
+      },
+      mes_example: "",
+      scenario: "",
+      first_mes: "",
+      alternate_greetings: [],
+      outfits: {
+        default: { name: "日常", description: "", lingerie: "" },
+        sleep: { name: "睡衣", description: "", lingerie: "" },
+        formal: { name: "外出", description: "", lingerie: "" },
+        casual: { name: "休闲", description: "", lingerie: "" },
+        swimsuit: { name: "泳装", description: "", lingerie: "" }
+      },
+      system_prompt: "",
+      post_history_instructions: "",
+      creator_notes: "",
+      vocabulary: { action_verbs: [], genital_terms: [], moans: [], ejaculation: [], fluids: [] },
+      bans: [],
+      extensions: {}
     };
 
     /* ================== 状态 ================== */
@@ -505,6 +664,7 @@
       worldBooks: [],
       activeWorldBooks: [],
       outline: '',
+      currentBeatIndex: 0,
       history: [],
       summaryBlocks: [],
       gameStarted: false,
@@ -600,46 +760,179 @@
     /* ================== 系统消息构建 ================== */
     function buildNarrativeSystemMessage() {
       const prefs = state.preferences;
-      let extra = '\n\n=== 用户偏好 ===\n';
-      extra += `故事方式: ${prefs.style} (${prefs.style === '对话体' ? '大量对话，减少叙述' : prefs.style === '叙述体' ? '侧重描写与叙述' : '平衡对话与描写'})\n`;
-      extra += `长度限制: ${prefs.length}字以上\n`;
-      if (prefs.scenes) extra += `偏好场景: ${prefs.scenes}\n`;
-      if (prefs.play) extra += `偏好玩法: ${prefs.play}\n`;
-      if (prefs.position) extra += `体位偏好: ${prefs.position}\n`;
-      if (prefs.limits) extra += `额外限制: ${prefs.limits}\n`;
-      if (prefs.orgasm !== '无要求') extra += `高潮要求: ${prefs.orgasm}\n`;
-      if (prefs.cum) extra += `射精部位偏好: ${prefs.cum}\n`;
-      extra += '\n=== 多人场景规则 ===\n1. 明确标注每个角色的动作和位置。\n2. 避免角色间动作混淆。\n';
+
+      // 构建偏好命令块
+      let prefsBlock = '\n\n=== 用户偏好（强制遵守） ===\n';
+      const styleMap = {
+        '对话体': '以对话为主驱动剧情。每段落对话占比 ≥70%。',
+        '叙述体': '以描写和叙述为主。减少对话，注重感官和环境。',
+        '混合体': '对话与描写交替。每段落对话和描写各占约50%。'
+      };
+      prefsBlock += `${styleMap[prefs.style] || styleMap['混合体']}\n`;
+      prefsBlock += `单次输出不少于${prefs.length}字。达到字数前不得自然收束。\n`;
+      if (prefs.scenes) prefsBlock += `偏好场景: ${prefs.scenes} — 优先在该场景中展开。若当前不在该场景，通过剧情自然过渡。\n`;
+      if (prefs.play) prefsBlock += `偏好玩法: ${prefs.play} — 须在情节中体现此玩法元素。\n`;
+      if (prefs.position) prefsBlock += `体位偏好: ${prefs.position} — 性行为中优先使用此体位。\n`;
+      if (prefs.limits) prefsBlock += `额外限制: ${prefs.limits} — 绝对禁止出现以下内容。\n`;
+      if (prefs.orgasm !== '无要求') {
+        const orgasmMap = {
+          '单次': '本次场景中角色高潮须恰好1次。描写完整的接近信号→爆发→余韵链条。',
+          '多次': '本次场景中角色须高潮≥3次。每次含完整的接近信号→爆发→余韵。次间休息≤1分钟。',
+          '连续': '本次场景中角色须连续高潮无休息间隔。高潮结束后立即被刺激至下一次高潮。',
+          '强制': '本次场景中被强制持续刺激至多次高潮，直至崩溃。角色可恳求停止但不会停止刺激。'
+        };
+        prefsBlock += `高潮要求: ${orgasmMap[prefs.orgasm] || prefs.orgasm}\n`;
+      }
+      if (prefs.cum) prefsBlock += `射精部位偏好: ${prefs.cum} — 精液须射在该部位。该部位须在射精前有铺垫描写（触碰/亲吻/注视）。\n`;
+
+      prefsBlock += '\n=== 多人场景规则 ===\n';
+      prefsBlock += '1. 每个角色的动作须单独成段，以角色名开头。\n';
+      prefsBlock += '2. 性行为时每个角色占据一个身体位置（如 [角色A] 在身后，[角色B] 在身前）。\n';
+      prefsBlock += '3. 所有角色须持续在场。无角色可无故消失。\n';
+
       const modStr = JSON.stringify(state.narrativeModule, null, 2);
-      let result = BASE_SYSTEM_PROMPT + '\n\n=== 叙事模块 ===\n' + modStr + '\n' + extra;
+      let result = BASE_SYSTEM_PROMPT + '\n\n=== 叙事模块 ===\n' + modStr + '\n' + prefsBlock + EXECUTION_RULES;
       if (state.activeCards?.length || state.activeWorldBooks?.length || state.outline) {
-        result += '\n\n=== 上下文查询 ===\n';
-        result += '你可以使用 recall_context 工具查询角色信息、世界设定、或大纲。\n';
-        result += '当你不确定角色的外貌/性格/口癖，或需要确认世界观规则时，主动调用该工具。\n';
-        result += '写作过程中如果忘记了任何设定，查询比猜测更好。\n';
+        result += '\n\n=== 工具使用 ===\n';
+        result += '当你不确定角色的外貌/性格/口癖/身体数据，或需要确认世界观规则/地点/体位时，必须调用 recall_context 工具查询。禁止凭记忆猜测。\n';
+        result += '以下场景必须调用工具：描写角色身体细节、进入新地点、切换体位、描写高潮、描写道具使用。\n';
       }
       return result;
     }
 
     function buildOutlineSystemMessage() {
-      return BASE_SYSTEM_PROMPT + '\n\n=== 大纲生成指令 ===\n请生成一个超详细、高度色情的故事大纲，包含所有角色的互动、姿势、高潮安排等。预算128k tokens。直接输出大纲，不要故事正文。';
+      // 提取叙事模块的 word_budget 用于引导大纲的字数分配
+      const pacing = state.narrativeModule?.erotic_pacing || {};
+      let budgetRef = '';
+      if (pacing.foreplay_phase?.word_budget_ratio) {
+        budgetRef = `\n### 叙事模块字数预算（大纲须遵循）\n`;
+        budgetRef += `前戏期(foreplay): ${pacing.foreplay_phase.word_budget_ratio}\n`;
+        budgetRef += `插入前期(insertion_early): ${pacing.insertion_early?.word_budget_ratio || '25%'}\n`;
+        budgetRef += `快感积累(buildup): ${pacing.buildup_phase?.word_budget_ratio || '25%'}\n`;
+        budgetRef += `高潮(climax): ${pacing.climax_phase?.word_budget_ratio || '15%'}\n`;
+        budgetRef += `余韵(afterglow): ${pacing.afterglow_phase?.word_budget_ratio || '5%'}\n`;
+        budgetRef += `→ 每个 phase 的 beat 累计 estimated_words 须与此比例匹配（允许±5%偏差）。\n`;
+      }
+
+      return BASE_SYSTEM_PROMPT + `
+
+=== 大纲生成命令 ===
+
+输出以下 JSON 结构。不输出 JSON 之外的任何内容。
+
+{
+  "title": "故事标题",
+  "total_estimated_words": 数字,
+  "active_characters": ["角色名"],
+  "active_world_books": ["世界书名"],
+  "beats": [
+    {
+      "id": 1,
+      "name": "节拍名称",
+      "estimated_words": 数字,
+      "location_ref": "世界书条目name",
+      "time": "场景时间",
+      "tension_level": 1-10,
+      "erotic_phase": "foreplay_phase / insertion_early / buildup_phase / climax_phase / afterglow_phase",
+      "characters_in_scene": ["角色名"],
+      "key_actions": ["具体动作句"],
+      "sexual_milestone": "无/接吻/抚摸/手指进入/口交/插入/内射/多次高潮",
+      "required_card_fields": ["角色卡字段路径"],
+      "required_world_entries": ["世界书条目name"],
+      "transition_to_next": "具体过渡画面",
+      "phase_writing_rule": "此节拍的写作规则。从前戏到余韵依次参照叙事模块的对应phase。格式：'句子用[长句/中句/短句/极短句]，感官以[触觉/听觉/...]为主，心理活动[有/无/≤10%]，对话[完整/短促/禁止]'"
+    }
+  ],
+  "global_rules": ["以'必须'或'禁止'开头的跨beat规则"]
+}` + budgetRef + `
+
+规则：
+1. beats 数量 = ceil(total_estimated_words / 3000)。每个 beat 字数 1000-4000。
+2. tension_level 与 erotic_phase 严格映射：
+   - foreplay_phase: tension 2-5
+   - insertion_early: tension 5-7
+   - buildup_phase: tension 7-8
+   - climax_phase: tension 9-10
+   - afterglow_phase: tension 5→3
+3. erotic_phase 线性推进，不回退。同一 phase 可连续多个 beat（如 buildup 需多个 beat 积累）。
+4. 每个 beat 的 estimated_words 须按上面的 phase 预算比例分配。
+5. key_actions 每条不超过30字，写主干动作，不写描写。
+6. sexual_milestone 线性推进，不回退。
+7. required_card_fields 用点号路径，如"角色名.orgasm_pattern.during_orgasm"。
+8. transition_to_next 写具体画面，不写抽象描述。
+9. global_rules 每条以"必须"或"禁止"开头。至少包含：角色硬限禁令、高潮描写规则、体裁禁令（如"禁止文学隐喻"）。
+10. phase_writing_rule 每个 beat 必填。从叙事模块对应的 phase 中推导句法/感官/心理/对话规则。不同 phase 的 beat 写作规则必须有差异。
+
+直接输出JSON。`;
     }
 
     function buildOptionsSystemMessage() {
-      const modStr = JSON.stringify(state.narrativeModule, null, 2);
+      const narrativeStr = JSON.stringify(state.narrativeModule?.author_persona || {}, null, 2);
       const prefs = state.preferences;
-      let extra = '\n\n=== 选项生成指令 ===\n';
-      extra += '你是一个选项生成器，基于当前剧情、大纲和角色卡生成后续行动选项。\n';
-      extra += '每个选项应是一个简短的动作或语句，用于决定下一步的角色行动。\n';
-      extra += '输出格式：每行以"- "开头，列出3-5个选项。\n';
-      extra += '**绝对不要续写故事、不要添加任何描述性文字、不要输出任何叙事内容。**\n';
-      extra += '\n=== 角色设定 ===\n' + modStr + '\n';
-      extra += '\n=== 用户偏好 ===\n';
-      extra += `故事方式: ${prefs.style}\n`;
-      if (prefs.scenes) extra += `偏好场景: ${prefs.scenes}\n`;
-      if (prefs.play) extra += `偏好玩法: ${prefs.play}\n`;
-      if (prefs.position) extra += `体位偏好: ${prefs.position}\n`;
-      if (prefs.limits) extra += `额外限制: ${prefs.limits}\n`;
+
+      // 提取当前大纲节拍
+      let beatStr = '';
+      if (state.outline?.beats) {
+        const cb = state.outline.beats[state.currentBeatIndex || 0];
+        if (cb) {
+          beatStr += `\n### 当前节拍（选项须推进此节拍）\n`;
+          beatStr += `名称: ${cb.name}\n情色阶段: ${cb.erotic_phase}\n性里程碑: ${cb.sexual_milestone}\n`;
+          beatStr += `关键动作: ${(cb.key_actions || []).join('; ')}\n`;
+          beatStr += `禁止跳到: ${(state.outline.beats[(state.currentBeatIndex || 0) + 1])?.name || '无下一节拍'} — 选项不得进入下一节拍。\n`;
+        }
+      }
+
+      // 提取激活卡片的 V4 关键数据
+      let cardStr = '';
+      if (state.activeCards?.length) {
+        cardStr += '\n### 激活角色卡（选项须遵守其数据）\n';
+        for (const c of state.activeCards) {
+          const obj = typeof c.content === 'string' ? tryParseJSON(c.content) : c.content;
+          if (!obj) continue;
+          cardStr += `- ${obj.name || c.name}: ${obj.physical?.breasts?.cup || '?'}杯, 性角色=${obj.sexual_preferences?.role || '?'}, 硬限=[${(obj.sexual_preferences?.hard_limits || []).join(',') || '无'}], kinks=[${(obj.sexual_preferences?.kinks || []).slice(0,5).join(',') || '无'}]`;
+          if (obj.sexual_preferences?.orgasm_pattern?.average_per_session) {
+            cardStr += `, 每session高潮${obj.sexual_preferences.orgasm_pattern.average_per_session}次`;
+          }
+          cardStr += '\n';
+        }
+      }
+
+      let extra = `\n\n=== 选项生成命令 ===\n`;
+      extra += `\n【输出格式】\n每行以"- "开头。输出3-5个选项。每选项不超过15字。`;
+      extra += `\n\n【强制规则】\n`;
+      extra += `1. 选项必须推进当前节拍，不得跳到下一节拍。\n`;
+      extra += `2. 选项不得违反任何角色的硬限（hard_limits）。\n`;
+      extra += `3. 选项应匹配角色的性角色定位（role）和性癖（kinks）。\n`;
+      extra += `4. 如果大纲指定了体位偏好或高潮要求，选项必须体现。\n`;
+      extra += `5. 选项应多样化：包含动作推进、对话发起、环境互动、体位切换。\n`;
+      extra += `6. 选项不是叙事描写——是给玩家选的动作简写。\n`;
+      extra += `7. 禁止写叙事内容或描述性文字。禁止续写故事。\n`;
+
+      extra += `\n【格式示例（需严格遵循）】\n`;
+      extra += `- 翻身骑上去，自己扭腰\n- 抓住她的头发拉近距离\n- 把她抱到窗台上\n- 在她耳边说骚话\n- 让她自己掰开给你看\n`;
+
+      // 叙事风格
+      extra += `\n### 叙事风格\n${narrativeStr}`;
+
+      // 大纲节拍
+      extra += beatStr;
+
+      // 角色卡
+      extra += cardStr;
+
+      // 用户偏好（命令式）
+      extra += `\n### 用户偏好（命令）\n`;
+      extra += `故事方式: ${prefs.style} — 本选项集须匹配此风格。\n`;
+      extra += `长度下限: ${prefs.length}字以上 — 生成的选项须支持达成此字数。\n`;
+      if (prefs.scenes) extra += `偏好场景: ${prefs.scenes} — 优先生成与此场景相关的选项。\n`;
+      if (prefs.play) extra += `偏好玩法: ${prefs.play} — 至少2个选项涉及此玩法。\n`;
+      if (prefs.position) extra += `体位偏好: ${prefs.position} — 至少1个选项涉及此体位。\n`;
+      if (prefs.limits) extra += `额外限制: ${prefs.limits} — 所有选项不得违反。\n`;
+      if (prefs.orgasm !== '无要求') extra += `高潮要求: ${prefs.orgasm} — 选项应推进到此状态。\n`;
+      if (prefs.cum) extra += `射精部位偏好: ${prefs.cum} — 接近高潮时选项须导向此部位。\n`;
+
+      extra += '\n只输出选项。不输出任何其他内容。';
+
       return BASE_SYSTEM_PROMPT + extra;
     }
 
@@ -651,21 +944,126 @@
     function buildTrainNarrativePrompt(material) {
       return {
         system: BASE_SYSTEM_PROMPT,
-        user: `=== 叙事风格提取 ===\n根据以下色情文本，提炼作者的写作风格、人格特质、常用词汇库。输出JSON，格式参考：${JSON.stringify(DEFAULT_NARRATIVE_MODULE)}\n\n本指令为JSON提取任务，忽略 BASE ROLE 中关于"层次推进""细节展开"的输出规则，严格遵守"只输出JSON"。\n\n材料:\n${material}\n\n只输出JSON。`
+        user: `=== 叙事风格训练 V4 ===
+
+从以下色情文本中提取完整的叙事模块数据。输出以下 JSON 结构。不输出 JSON 之外的任何内容。
+
+{
+  "author_persona": {
+    "style": "从[叙述体/对话体/混合体]中单选",
+    "tone": "从[直白情色/浪漫/粗暴/支配/服从/玩弄/偷情]中单选。包含一句话整体印象描述。",
+    "strengths": ["选择2-3个：具体生理描写/动作驱动/感官堆叠/节奏控制/对话真实/氛围营造"],
+    "sentence_style": "从[长句派/短句派/混合派]中单选，附一句话说明",
+    "specialty": "从[言情/感官/剧情/硬核]中单选。附一句话描述写作特点（如'写身体直接——不写她很兴奋，写乳头挺立的精确变化'）"
+  },
+  "vocabulary": {
+    "action_verbs": ["至少5个，从文本逐词收集"],
+    "genital_terms": ["文本中出现的所有性器官称呼，至少3个"],
+    "body_parts": ["文本中出现的所有身体部位名词，至少5个"],
+    "moans": ["文本中出现的所有呻吟拟声词，至少5个。有♡标记的保留♡"],
+    "ejaculation": ["文本中出现的所有射精相关动词，至少3个"],
+    "fluids": ["文本中出现的所有体液名词，至少3个"],
+    "sound_effects": ["文本中出现的所有拟声词（水声/撞击声/舔舐声），至少3个。无则标注空数组"]
+  },
+  "erotic_pacing": {
+    "foreplay_phase": {
+      "word_budget_ratio": "数字%",
+      "style": "从此阶段文本中提取句法规则：句长倾向、主写感官的种类、对话占比、心理活动占比",
+      "example_sentence": "从文本中摘取1句此阶段的典型句子"
+    },
+    "insertion_early": {
+      "word_budget_ratio": "数字%",
+      "style": "从此阶段文本中提取句法规则：动作与反应的交替模式、触觉描写的具体方式",
+      "example_sentence": "从文本中摘取1句"
+    },
+    "buildup_phase": {
+      "word_budget_ratio": "数字%",
+      "style": "从此阶段文本中提取句法规则：句子缩短的程度、内部感受描写的具体方式",
+      "example_sentence": "从文本中摘取1句"
+    },
+    "climax_phase": {
+      "word_budget_ratio": "数字%",
+      "style": "从此阶段文本中提取句法规则：短句轰炸的程度、被禁的元素（心理活动/完整对话）",
+      "example_sentence": "从文本中摘取1句"
+    },
+    "afterglow_phase": {
+      "word_budget_ratio": "数字%",
+      "style": "从此阶段文本中提取句法规则：恢复长句的方式、余韵描写的侧重点",
+      "example_sentence": "从文本中摘取1句"
+    }
+  },
+  "sensory_priority": ["按文本实际使用频率排列。必须包含[触觉/听觉/内部感受/视觉/嗅觉]中的5项"],
+  "dialogue_integration": "从[对话嵌入动作中不独立成段/对话独立成段/少对话全靠描写]中单选。附一句话具体说明（如'叫床话短促破碎脏，高潮时退化为单音节'）",
+  "bans": ["从文本中提取禁止的写法。包含以下维度的禁令：隐喻/心理描写上限/概括性描写/冷却段落/AI腔/机器翻译感。若文本中某维度无法判断则写'_材料无法判断'"]
+
+提取规则（违反则输出无效）：
+
+1. 阶段识别：扫描全文，找出情色描写的五个阶段边界——
+   - foreplay_phase: 从场景开始到第一次性器官接触前的段落
+   - insertion_early: 从第一次插入到节奏开始加快前的段落
+   - buildup_phase: 节奏加快、快感积累、但尚未高潮的段落
+   - climax_phase: 高潮爆发的段落
+   - afterglow_phase: 高潮结束后的段落
+   如果文本缺少某阶段（如没有余韵），该阶段的 word_budget_ratio 填0%，style 填"材料中无此阶段"，example_sentence 填""。
+
+2. 词汇收集：逐词扫描提取，不编造。中文文本只输出中文词汇。每个词汇数组去重。
+
+3. 比例计算：按每个阶段的字数和总情色内容的字数之比计算 word_budget_ratio。五个数字之和必须等于100%。缺阶段填0%。
+
+4. example_sentence 摘取规则：从文本中直接剪切原句，不修改任何字或标点。长度控制在20-40字。
+
+5. bans 提取：扫描文本中应被禁止但在材料中恰好不存在或明确回避的写法。至少提取5条。已出现于材料但属于不良写法的也归入。
+
+材料:
+${material}
+
+只输出JSON。`
       };
     }
-
     function buildTrainCardPrompt(material) {
       return {
         system: BASE_SYSTEM_PROMPT,
-        user: `=== 角色卡提取 ===\n根据以下色情文本，提取一个或多个角色的设定。每个角色包含：name、description、personality、speech_patterns、physical_traits、preferences。输出JSON数组。\n\n本指令为JSON提取任务，忽略 BASE ROLE 中关于"层次推进""细节展开"的输出规则，严格遵守"只输出JSON"。\n\n材料:\n${material}\n\n只输出JSON。`
+        user: `=== 角色卡训练 ===
+
+从以下文本提取角色。每个角色输出完整 V4 角色卡。输出 JSON 数组。不输出 JSON 之外的任何内容。
+
+格式：[${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}]
+
+提取规则：
+1. 身体数据：扫描文本中所有生理描写关键词（乳房/乳头/小穴/阴唇/阴蒂/腰/臀/腿/皮肤）。每找到一个写入 physical 对应字段。文本未提及的字段强制推断并标注"_推断"。physical 下所有子对象不得留空。
+2. 敏感带：扫描被触碰时的角色反应。颤抖/失声→level 9-10，喘息/僵直→7-8，呼吸变化→5-6。输出 ≥3 个。
+3. 高潮模式：扫描所有高潮场景。接近信号从高潮前2-3段提取。爆发从高潮段落提取。余韵从高潮后1-2段提取。每个子数组 ≥2 项。材料中无高潮场景时标注"_材料中未出现"。
+4. 示例对话：从文本直接摘取角色的完整对话句，保留原文措辞。≥2 组，<START> 分隔。纯描写无对话时标注"_材料为纯描写"。
+5. 硬限：仅文本中角色明确拒绝或厌恶的内容归入 hard_limits。未出现的内容不自动归入硬限。
+
+材料:
+${material}
+
+只输出JSON数组。`
       };
     }
 
     function buildCardGenPrompt(desc) {
       return {
         system: BASE_SYSTEM_PROMPT,
-        user: `=== 角色卡生成 ===\n根据用户描述生成一个详细色情角色卡，必须包含：姓名、外貌、性格、常用淫语、性癖好。输出JSON，格式：${JSON.stringify(CARD_TEMPLATE_BASE)}\n\n本指令为JSON提取任务，忽略 BASE ROLE 中关于"层次推进""细节展开"的输出规则，严格遵守"只输出JSON"。\n\n描述: ${desc}\n\n只输出JSON。`
+        user: `=== 角色卡生成 ===
+
+根据描述生成完整 V4 角色卡。输出以下 JSON 结构。不输出 JSON 之外的任何内容。
+
+${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
+
+规则：
+1. 所有 "" 字段填写或标注"_未指定"。所有 [] 字段至少填入1项。
+2. physical.breasts 全部子字段必填。缺失时强制推断：熟女→D杯，少女→B-C杯，御姐→C-D杯。
+3. physical.genitals 全部子字段必填。
+4. erogenous_zones ≥3项，每项zone/level/reaction全部填写。
+5. orgasm_pattern 的 triggers/signs_approaching/during_orgasm/after_orgasm 四项，每项 ≥2。
+6. mes_example ≥2组，<START> 分隔。格式：{{user}}: 句\\n{{char}}: 句。
+7. 性器官和性行为使用直白术语。
+
+描述: ${desc}
+
+只输出JSON。`
       };
     }
 
@@ -674,17 +1072,44 @@
       type: "function",
       function: {
         name: "recall_context",
-        description: `查询当前故事的上下文信息。写作过程中需要确认以下内容时调用：
-- 角色：某个角色的外貌、性格、口癖、背景。参数 character_queries 填角色名，如 ["林姐"]
-- 世界：世界观、社会规则、场景、禁忌、性文化。参数 world_queries 填关键词，如 ["社会规则","禁忌"]
-- 大纲：故事剧情走向。参数 need_outline 填 true
-一次可查询多个类别。不确定时就查。`,
+        description: `查询当前故事的上下文数据。
+
+=== 必须调用的场景 ===
+- 描写角色身体细节 → character_field_paths 下钻查询
+- 进入新地点 → world_queries + world_category_filter="地点"
+- 切换体位 → world_group_filter="sex_position"
+- 描写道具使用 → world_queries + world_category_filter="道具"
+- 描写高潮 → character_field_paths 查询 orgasm_pattern
+- 不确定任何事实 → 必须查询，禁止猜测
+
+=== 参数 ===`,
         parameters: {
           type: "object",
           properties: {
-            character_queries: { type: "array", items: { type: "string" }, description: "角色名列表。如 ['林姐','医生']。填 ['全部'] 查所有。" },
-            world_queries: { type: "array", items: { type: "string" }, description: "世界观关键词。如 ['社会规则','当前场景']。" },
-            need_outline: { type: "boolean", description: "是否需要大纲。" }
+            character_queries: {
+              type: "array", items: { type: "string" },
+              description: "角色名数组。['全部']=查所有激活角色。返回：身份/身体/罩杯/敏感带/性角色/高潮模式/硬限/说话风格。"
+            },
+            character_field_paths: {
+              type: "array", items: { type: "string" },
+              description: "角色字段路径。格式：'角色名.路径'。例: ['林姐.orgasm_pattern.during_orgasm']。返回字段完整内容。"
+            },
+            world_queries: {
+              type: "array", items: { type: "string" },
+              description: "世界书关键词。匹配触发词+类别+条目名。结果按 priority 降序排列。"
+            },
+            world_category_filter: {
+              type: "string",
+              description: "限定类别。值：地点/体位/规则/随机事件/道具/对话规范。"
+            },
+            world_group_filter: {
+              type: "string",
+              description: "查询 inclusion group 下所有条目及权重。如 'sex_position'。"
+            },
+            need_outline: {
+              type: "boolean",
+              description: "true=返回当前节拍+下一节拍+全局规则。不返全文。"
+            }
           },
           required: []
         }
@@ -693,39 +1118,352 @@
 
     function recallContext(params) {
       const result = {};
-      if (params.character_queries?.length && state.activeCards?.length) {
-        result.characters = [];
-        const queryAll = params.character_queries[0] === '全部';
-        state.activeCards.forEach(c => {
-          const cardText = [c.name, c.description, c.personality, c.content, JSON.stringify(c.speech_patterns), c.physical_traits].join(' ');
-          if (queryAll || params.character_queries.some(q => cardText.includes(q))) {
-            result.characters.push({ name: c.name, description: c.description, personality: c.personality, speech_patterns: c.speech_patterns, physical_traits: c.physical_traits, preferences: c.preferences, content: c.content });
-          }
-        });
-        if (!result.characters.length) result.characters = state.activeCards.map(c => ({ name: c.name, description: c.description || '(无描述)' }));
+
+      function parseCard(card) {
+        if (!card) return null;
+        if (typeof card.content === 'string') { try { return JSON.parse(card.content); } catch (e) { return null; } }
+        if (typeof card.content === 'object') return card.content;
+        return null;
       }
-      if (params.world_queries?.length && state.activeWorldBooks?.length) {
-        result.world_entries = [];
-        state.activeWorldBooks.forEach(wb => {
-          (wb.entries || []).forEach(e => {
-            if (params.world_queries.some(q => (e.key + e.content).includes(q))) {
-              result.world_entries.push({ world: wb.name, key: e.key, content: e.content });
+
+      function getByPath(obj, path) {
+        const parts = path.split('.');
+        let current = obj;
+        for (const p of parts) { if (current === null || current === undefined) return undefined; current = current[p]; }
+        return current;
+      }
+
+      function buildCharacterDigest(cardObj, cardName) {
+        const p = cardObj.physical || {};
+        const sp = cardObj.sexual_preferences || {};
+        const pers = cardObj.personality || {};
+        const spk = cardObj.speech || {};
+        return {
+          name: cardObj.name || cardName,
+          aliases: cardObj.aliases || [],
+          identity: `${cardObj.age || '?'}岁 / ${cardObj.gender || '?'} / ${cardObj.occupation || '?'}`,
+          relationship: cardObj.relationship_to_user || '',
+          body_summary: `${p.height_cm || '?'}cm / ${(p.breasts || {}).cup || '?'}杯 / ${p.body_type || ''}`,
+          breasts: p.breasts ? { cup: p.breasts.cup, shape: p.breasts.shape, nipple_color: p.breasts.nipple_color, nipple_size: p.breasts.nipple_size, sensitivity: p.breasts.sensitivity } : undefined,
+          genitals: p.genitals ? { pubic_hair: p.genitals.pubic_hair, vulva_type: p.genitals.vulva_type, tightness: p.genitals.tightness, taste: p.genitals.taste, color: p.genitals.color } : undefined,
+          erogenous_zones: (cardObj.erogenous_zones || []).map(z => ({ zone: z.zone, level: z.level, reaction: z.reaction })),
+          personality_traits: (pers.traits || []).map(t => `${t.trait}(${t.context || ''})`),
+          speech: spk.style || pers.speech_tone || '',
+          sexual_role: sp.role || '',
+          libido: sp.libido || '',
+          pacing: sp.pacing_preference || '',
+          kinks: sp.kinks || [],
+          hard_limits: sp.hard_limits || [],
+          soft_limits: sp.soft_limits || [],
+          orgasm_summary: sp.orgasm_pattern ? { avg_per_session: sp.orgasm_pattern.average_per_session, triggers: sp.orgasm_pattern.triggers || [], signs: sp.orgasm_pattern.signs_approaching || [], during: sp.orgasm_pattern.during_orgasm || [], after: sp.orgasm_pattern.after_orgasm || [] } : undefined,
+          cum_preference: sp.cum_preference || '',
+          catchphrases: spk.catchphrases || [],
+          moan_vocab: spk.moan_vocabulary || [],
+          bans: cardObj.bans || []
+        };
+      }
+
+      function buildWorldEntryResult(entry, worldName) {
+        return {
+          world: worldName, id: entry.id, category: entry.category, name: entry.name,
+          content: entry.content, priority: entry.priority || 200,
+          triggers: entry.triggers || [entry.key], position: entry.position || 'before_char',
+          group: entry.group || undefined, groupWeight: entry.groupWeight || undefined,
+          sticky: entry.sticky || 0, probability: entry.probability || 100
+        };
+      }
+
+      // 角色查询
+      if ((params.character_queries?.length || params.character_field_paths?.length) && state.activeCards?.length) {
+        result.characters = [];
+        const queryAll = params.character_queries?.length === 1 && params.character_queries[0] === '全部';
+        const matchedCards = new Set();
+        if (params.character_queries?.length && !queryAll) {
+          for (const card of state.activeCards) {
+            const obj = parseCard(card);
+            const nm = obj?.name || card.name || '';
+            const aliases = obj?.aliases || [];
+            if (params.character_queries.some(q => { const ql = q.toLowerCase(); return nm.toLowerCase().includes(ql) || aliases.some(a => a.toLowerCase().includes(ql)); })) matchedCards.add(card);
+          }
+        }
+        if (queryAll || (!params.character_queries?.length && !params.character_field_paths?.length)) state.activeCards.forEach(c => matchedCards.add(c));
+        if (params.character_field_paths?.length) {
+          for (const card of state.activeCards) {
+            const obj = parseCard(card);
+            for (const fp of params.character_field_paths) {
+              const dotIdx = fp.indexOf('.');
+              if (dotIdx > 0) {
+                const cn = fp.substring(0, dotIdx);
+                const nm = obj?.name || card.name || '';
+                if (nm.toLowerCase().includes(cn.toLowerCase()) || (obj?.aliases || []).some(a => a.toLowerCase().includes(cn.toLowerCase()))) matchedCards.add(card);
+              }
             }
-          });
-        });
-        if (!result.world_entries.length) {
-          state.activeWorldBooks.forEach(wb => {
-            (wb.entries || []).forEach(e => { if (e.always) result.world_entries.push({ world: wb.name, key: e.key, content: e.content }); });
-          });
+          }
+        }
+        for (const card of matchedCards) {
+          const obj = parseCard(card);
+          const entry = buildCharacterDigest(obj, card.name);
+          if (params.character_field_paths?.length) {
+            entry._field_results = {};
+            for (const fp of params.character_field_paths) {
+              const dotIdx = fp.indexOf('.');
+              if (dotIdx > 0) {
+                const cn = fp.substring(0, dotIdx);
+                const fieldPath = fp.substring(dotIdx + 1);
+                const nm = obj?.name || card.name || '';
+                if (nm.toLowerCase().includes(cn.toLowerCase())) entry._field_results[fp] = getByPath(obj, fieldPath);
+              } else { entry._field_results[fp] = getByPath(obj, fp); }
+            }
+            if (Object.keys(entry._field_results).length === 0) delete entry._field_results;
+          }
+          result.characters.push(entry);
+        }
+        if (!result.characters.length && state.activeCards.length) result.characters = state.activeCards.map(c => ({ name: c.name || '(未知)', note: '未找到匹配的角色' }));
+      }
+
+      // 世界书 group 查询
+      if (params.world_group_filter && state.activeWorldBooks?.length) {
+        result.world_groups = {};
+        for (const wb of state.activeWorldBooks) {
+          for (const entry of (wb.entries || [])) {
+            if (entry.group === params.world_group_filter) {
+              if (!result.world_groups[entry.group]) result.world_groups[entry.group] = [];
+              result.world_groups[entry.group].push({ world: wb.name, id: entry.id, name: entry.name, category: entry.category, groupWeight: entry.groupWeight || 50, triggers: entry.triggers || [entry.key], content_snippet: (entry.content || '').slice(0, 150) });
+            }
+          }
+        }
+        if (Object.keys(result.world_groups).length === 0) result.world_groups = { _note: `未找到 group="${params.world_group_filter}" 的条目` };
+      }
+
+      // 世界书条目查询
+      if ((params.world_queries?.length || params.world_category_filter) && state.activeWorldBooks?.length) {
+        result.world_entries = [];
+        const seen = new Set();
+        for (const wb of state.activeWorldBooks) {
+          for (const entry of (wb.entries || [])) {
+            if (entry.always && !seen.has(entry.id)) {
+              result.world_entries.push(buildWorldEntryResult(entry, wb.name));
+              seen.add(entry.id);
+              continue;
+            }
+            if (params.world_category_filter) {
+              const cf = params.world_category_filter.toLowerCase();
+              if (!(entry.category || '').toLowerCase().includes(cf)) continue;
+            }
+            if (params.world_queries?.length) {
+              const triggers = (entry.triggers || [entry.key]).map(t => t.toLowerCase());
+              const targets = [...triggers, (entry.category || '').toLowerCase(), (entry.name || '').toLowerCase()];
+              if (!params.world_queries.some(q => { const ql = q.toLowerCase(); return targets.some(t => t.includes(ql)); })) continue;
+            }
+            if (!seen.has(entry.id)) { result.world_entries.push(buildWorldEntryResult(entry, wb.name)); seen.add(entry.id); }
+          }
+        }
+        result.world_entries.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+        const groupsFound = {};
+        for (const e of result.world_entries) { if (e.group) { if (!groupsFound[e.group]) groupsFound[e.group] = []; groupsFound[e.group].push(e.name); } }
+        if (Object.keys(groupsFound).length) {
+          result.group_relations = groupsFound;
+          result.group_note = '同 group 的条目在每轮只激活一个（按 groupWeight 随机选择）。如需切换，再次查询 world_group_filter。';
+        }
+        if (!result.world_entries.length && (params.world_queries?.length || params.world_category_filter)) {
+          result.world_entries = [{ _note: '未找到匹配的世界书条目。可用类别：地点/体位/规则/随机事件/道具/对话规范' }];
         }
       }
-      if (params.need_outline) result.outline = state.outline || '(暂无大纲)';
-      result.active_summary = { characters: (state.activeCards || []).map(c => c.name), worlds: (state.activeWorldBooks || []).map(w => w.name), has_outline: !!state.outline };
+
+      // 大纲查询
+      if (params.need_outline) {
+        if (typeof state.outline === 'object' && state.outline?.beats) {
+          const ci = state.currentBeatIndex || 0;
+          result.outline = { title: state.outline.title || '', current_beat: state.outline.beats[ci] || null, next_beat: state.outline.beats[ci + 1] || null, total_beats: state.outline.beats.length, current_beat_index: ci, global_rules: state.outline.global_rules || [] };
+        } else if (typeof state.outline === 'string' && state.outline.trim()) {
+          result.outline = state.outline;
+        } else { result.outline = '(暂无大纲)'; }
+      }
+
+      result.active_summary = {
+        characters: (state.activeCards || []).map(c => { const obj = parseCard(c); return `${obj?.name || c.name}(${obj?.physical?.breasts?.cup || '?'}杯/${obj?.sexual_preferences?.role || '?'})`; }),
+        worlds: (state.activeWorldBooks || []).map(w => `${w.name}(${(w.entries || []).length}条)`),
+        has_outline: !!state.outline,
+        current_beat: (typeof state.outline === 'object' && state.outline?.beats) ? `第${(state.currentBeatIndex || 0) + 1}/${state.outline.beats.length}节` : undefined
+      };
+
       return JSON.stringify(result, null, 2);
+    }
+
+    function normalizeWorldBookResult(parsed, fallbackName) {
+      if (Array.isArray(parsed)) {
+        return {
+          id: 'wb_' + Date.now(), name: fallbackName || '未命名世界书', description: '自动从旧格式升级',
+          entries: parsed.map((e, i) => ({
+            ...WORLD_ENTRY_TEMPLATE, id: 'entry_' + (i + 1),
+            category: e.category || '规则', name: e.key || e.name || '条目' + (i + 1),
+            triggers: e.triggers || [e.key || '条目' + (i + 1)], content: e.content || ''
+          }))
+        };
+      }
+      if (!parsed.id) parsed.id = 'wb_' + Date.now();
+      if (!parsed.name) parsed.name = fallbackName || '未命名世界书';
+      if (!parsed.description) parsed.description = '';
+      if (!parsed.entries) parsed.entries = [];
+      parsed.entries = parsed.entries.map((e, i) => {
+        if (!e.id) e.id = 'entry_' + (i + 1);
+        if (!e.category) e.category = '规则';
+        if (!e.triggers || !e.triggers.length) e.triggers = [e.key || e.name || '条目' + (i + 1)];
+        if (!e.position) e.position = 'before_char';
+        if (e.priority === undefined) e.priority = 200;
+        return e;
+      });
+      return parsed;
+    }
+
+    function tryParseJSON(str) {
+      try { return JSON.parse(str); } catch (e) { return null; }
+    }
+
+    function buildCardInjectionBlock(isEarly) {
+      if (!state.activeCards?.length) return '';
+      let cc = '【角色卡】\n';
+      state.activeCards.forEach(c => {
+        const obj = typeof c.content === 'string' ? tryParseJSON(c.content) : c.content;
+        if (!obj) { cc += `\n--- ${c.name} ---\n${c.content}\n`; return; }
+        if (isEarly) {
+          cc += `\n--- ${obj.name || c.name} ---\n`;
+          cc += `身份: ${obj.age || ''}岁/${obj.gender || ''}/${obj.occupation || ''}\n`;
+          cc += `身体: ${obj.physical?.height_cm || ''}cm/${obj.physical?.breasts?.cup || ''}杯/${obj.physical?.body_type || ''}\n`;
+          cc += `乳房: ${obj.physical?.breasts?.shape || ''}, 乳头${obj.physical?.breasts?.nipple_color || ''}, ${obj.physical?.breasts?.sensitivity || ''}\n`;
+          cc += `生殖器: ${obj.physical?.genitals?.pubic_hair || ''}, ${obj.physical?.genitals?.vulva_type || ''}, ${obj.physical?.genitals?.tightness || ''}\n`;
+          cc += `敏感带: ${(obj.erogenous_zones || []).map(z => `${z.zone}(${z.level})`).join('/')}\n`;
+          cc += `性格: ${obj.personality?.summary || (obj.personality?.traits || []).map(t => t.trait).join('/')}\n`;
+          cc += `性角色: ${obj.sexual_preferences?.role || ''}\n`;
+          cc += `高潮: ${obj.sexual_preferences?.orgasm_pattern?.average_per_session || 0}次, 触发: ${(obj.sexual_preferences?.orgasm_pattern?.triggers || []).join(',')}\n`;
+          cc += '硬限: ' + ((obj.sexual_preferences?.hard_limits || []).join(',') || '无') + '\n';
+        } else {
+          cc += `\n--- ${obj.name || c.name} --- ${obj.physical?.breasts?.cup || ''}杯/${obj.sexual_preferences?.role || ''}。硬限: ${(obj.sexual_preferences?.hard_limits || []).join(',') || '无'}\n`;
+        }
+      });
+      return cc;
+    }
+
+    function buildWorldInjectionBlock() {
+      if (!state.activeWorldBooks?.length) return '';
+      const allEntries = [];
+      state.activeWorldBooks.forEach(wb => {
+        (wb.entries || []).forEach(e => allEntries.push({ ...e, _worldName: wb.name }));
+      });
+      allEntries.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+      const groups = {}, standalone = [];
+      for (const e of allEntries) {
+        if (e.group) { if (!groups[e.group]) groups[e.group] = []; groups[e.group].push(e); }
+        else standalone.push(e);
+      }
+      let wb = '';
+      wb += '\n【世界书·全局规则】\n';
+      standalone.filter(e => e.priority <= 150).forEach(e => wb += `[${e.category || '规则'}] ${e.name || e.key}: ${e.content}\n`);
+      wb += '\n【世界书·场景数据】\n';
+      standalone.filter(e => e.priority > 150 && e.position !== 'system').forEach(e => wb += `[${e.category || ''}] ${e.name || e.key}: ${e.content}\n`);
+      wb += '\n【世界书·场景指令】\n';
+      standalone.filter(e => e.position === 'system').forEach(e => wb += `[${e.category || '随机事件'}] ${e.content}\n`);
+      for (const [gName, entries] of Object.entries(groups)) {
+        wb += `\n【体位组: ${gName}（以下条目每轮仅激活一个）】\n`;
+        entries.forEach(e => wb += `[${e.category || '体位'}] ${e.name || e.key} (权重${e.groupWeight || 50}): ${e.content}\n`);
+      }
+      return wb;
+    }
+
+    function buildOutlineContext() {
+      if (!state.outline?.beats) return typeof state.outline === 'string' ? '当前大纲:\n' + state.outline : '';
+      const currentBeat = state.outline.beats[state.currentBeatIndex || 0];
+      const nextBeat = state.outline.beats[(state.currentBeatIndex || 0) + 1];
+      let ctx = '【当前场景节拍——严格执行】\n';
+      ctx += `名称: ${currentBeat.name}\n情色阶段: ${currentBeat.erotic_phase}\n张力等级: ${currentBeat.tension_level}/10\n`;
+
+      // 优先使用节拍专属 phase_writing_rule（大纲生成时已从叙事模块推导），回退到 tension 映射
+      if (currentBeat.phase_writing_rule) {
+        ctx += `写作规则: ${currentBeat.phase_writing_rule}\n`;
+      } else {
+        ctx += '写作规则: ';
+        if (currentBeat.tension_level <= 3) ctx += '长句铺氛围，动作后跟感官细节。';
+        else if (currentBeat.tension_level <= 6) ctx += '中等句长，动作与身体反应交替。';
+        else if (currentBeat.tension_level <= 8) ctx += '句子缩短，每个动作紧跟一个生理反应。';
+        else ctx += '短句轰炸，每句一个画面，禁止心理活动，禁止完整对话。';
+        ctx += '\n';
+      }
+
+      ctx += '关键动作（按顺序执行）:\n' + (currentBeat.key_actions || []).map((a, i) => `${i + 1}. ${a}`).join('\n') + '\n';
+      ctx += `性里程碑: ${currentBeat.sexual_milestone}\n地点引用: ${currentBeat.location_ref}\n`;
+      ctx += `需要读取的角色卡字段: ${(currentBeat.required_card_fields || []).join(', ') || '无'}\n`;
+      ctx += `需要激活的世界书条目: ${(currentBeat.required_world_entries || []).join(', ') || '无'}\n`;
+      if (nextBeat) {
+        ctx += `\n【下一场景预览——仅供方向参考】\n即将进入: ${nextBeat.name} → ${nextBeat.erotic_phase}\n过渡钩子: ${currentBeat.transition_to_next || '无'}\n【注意】不要跳到下一场景。\n`;
+      }
+      if (state.outline.global_rules?.length) ctx += '\n【全局规则——绝对服从】\n' + state.outline.global_rules.map(r => `· ${r}`).join('\n') + '\n';
+      return ctx;
+    }
+
+    function maybeAdvanceBeat(storyText) {
+      if (!state.outline?.beats) return false;
+      const currentBeat = state.outline.beats[state.currentBeatIndex || 0];
+      if (!currentBeat) return false;
+
+      // 统计最近3轮AI输出的估算中文字数（按字符数估算）
+      const recentAssistants = state.history
+        .filter(m => m.role === 'assistant')
+        .slice(-3);
+      const recentWords = recentAssistants.reduce((sum, m) => sum + (m.content?.length || 0), 0);
+
+      const threshold = currentBeat.estimated_words || 3000;
+      if (recentWords >= threshold) {
+        state.currentBeatIndex = (state.currentBeatIndex || 0) + 1;
+        const nextBeat = state.outline.beats[state.currentBeatIndex];
+        const msg = `场景节拍推进 → 第${state.currentBeatIndex + 1}/${state.outline.beats.length}节: ${nextBeat?.name || '结束'}`;
+        debugLog(msg);
+        if (nextBeat) {
+          // 将场景切换上下文注入为系统消息，下一轮会被消费
+          state.history.push({ role: 'system', content: buildOutlineContext() });
+        }
+        saveState();
+        return true;
+      }
+      return false;
+    }
+
+    function buildOutlineUserMessage() {
+      let msg = '请根据以下信息生成大纲：\n\n';
+      if (state.activeCards?.length) {
+        msg += '=== 激活角色卡 ===\n';
+        for (const card of state.activeCards) {
+          const obj = typeof card.content === 'string' ? tryParseJSON(card.content) : card.content;
+          if (!obj) continue;
+          msg += `名称: ${obj.name || card.name}\n`;
+          msg += `身份: ${obj.age || '?'}岁/${obj.gender || '?'}/${obj.occupation || '?'}\n`;
+          msg += `性格摘要: ${obj.personality?.summary || (obj.personality?.traits || []).map(t => t.trait).join(',')}\n`;
+          msg += `性角色: ${obj.sexual_preferences?.role || '?'}\n`;
+          msg += `高潮模式: 平均${obj.sexual_preferences?.orgasm_pattern?.average_per_session || 0}次\n`;
+          msg += `硬限: ${(obj.sexual_preferences?.hard_limits || []).join(',') || '无'}\n\n`;
+        }
+      }
+      if (state.activeWorldBooks?.length) {
+        msg += '\n=== 激活世界书（可用地点/规则） ===\n';
+        for (const wb of state.activeWorldBooks) {
+          for (const entry of (wb.entries || [])) {
+            msg += `[${entry.category || '未分类'}] ${entry.name || entry.key} — 触发词: ${(entry.triggers || [entry.key]).join(',')}\n`;
+          }
+        }
+      }
+      const p = state.preferences;
+      msg += '\n=== 偏好设置 ===\n';
+      if (p.scenes) msg += `偏好场景: ${p.scenes}\n`;
+      if (p.play) msg += `偏好玩法: ${p.play}\n`;
+      if (p.position) msg += `体位偏好: ${p.position}\n`;
+      if (p.length) msg += `长度要求: ${p.length}字以上\n`;
+      if (p.orgasm !== '无要求') msg += `高潮要求: ${p.orgasm}\n`;
+      msg += '\n请生成 JSON 格式的结构化大纲。';
+      return msg;
     }
 
     /* ================== API调用（真流式+工具循环） ================== */
     async function callAPI(messages, options = {}) {
+
       const {
         model = state.model, baseUrl = state.apiBaseUrl, apiKey = state.apiKey,
         maxTokens = state.apiMaxTokens, temperature = 0.9,
@@ -954,16 +1692,13 @@
         const outlineSys = buildOutlineSystemMessage();
         const cardsInfo = activeCards.map(c => c.content || JSON.stringify(c)).join('\n---\n');
         const prefsText = buildPreferenceText();
-        let wbInfo = '';
-        if (state.activeWorldBooks?.length) {
-          state.activeWorldBooks.forEach(wb => {
-            wbInfo += `\n=== 世界书：${wb.name} ===\n`;
-            (wb.entries || []).forEach(e => { wbInfo += `- ${e.key}: ${e.content}\n`; });
-          });
-        }
-        const outlineMessages = [{ role: 'system', content: outlineSys }, { role: 'user', content: `角色卡:\n${cardsInfo}\n${wbInfo ? '世界书:\n' + wbInfo + '\n' : ''}偏好:\n${prefsText}\n请综合以上角色卡、世界书和偏好，生成超详细色情大纲。` }];
+        const outlineUserMsg = buildOutlineUserMessage();
+        const outlineMessages = [{ role: 'system', content: outlineSys }, { role: 'user', content: outlineUserMsg }];
         const outline = await callAPI(outlineMessages, { maxTokens: 120000, temperature: 0.7 });
-        state.outline = outline;
+        const jsonMatch = outline.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try { state.outline = JSON.parse(jsonMatch[0]); state.currentBeatIndex = 0; } catch(e) { state.outline = outline; }
+        } else { state.outline = outline; }
         saveState();
         updateLoading('生成初始场景...', 30);
         const narrativeSys = buildNarrativeSystemMessage();
@@ -971,19 +1706,10 @@
           { role: 'system', content: narrativeSys },
           { role: 'system', content: '当前大纲（不输出）:\n' + outline }
         ];
-        if (activeCards.length) {
-          let cardsContent = '【角色卡】\n';
-          activeCards.forEach(c => { cardsContent += `\n--- ${c.name} ---\n${c.content || JSON.stringify(c)}\n`; });
-          storyMessages.push({ role: 'system', content: cardsContent });
-        }
-        if (state.activeWorldBooks?.length) {
-          let wbContent = '【世界书】\n';
-          state.activeWorldBooks.forEach(wb => {
-            wbContent += `\n=== ${wb.name} ===\n`;
-            (wb.entries || []).forEach(e => { wbContent += `- ${e.key}: ${e.content}\n`; });
-          });
-          storyMessages.push({ role: 'system', content: wbContent });
-        }
+        const cardBlock = buildCardInjectionBlock(true);
+        if (cardBlock) storyMessages.push({ role: 'system', content: cardBlock });
+        const wbBlock = buildWorldInjectionBlock();
+        if (wbBlock) storyMessages.push({ role: 'system', content: wbBlock });
         storyMessages.push({ role: 'user', content: '请根据角色卡、大纲和偏好，写出故事的开头。直接叙述。' });
         hideLoading();
         const storyEl = document.getElementById('storyMessages');
@@ -1005,6 +1731,8 @@
         state.gameStarted = true;
         saveState();
 
+        maybeAdvanceBeat(story);
+
         const optsEl = document.getElementById('optionsContainer');
         optsEl.innerHTML = '<div style="color:#888;padding:8px;font-size:13px;">生成选项...</div>';
         const opts = await generateOptionsFromContext();
@@ -1023,14 +1751,14 @@
     function buildPreferenceText() {
       const p = state.preferences;
       let t = '';
-      if (p.style) t += `故事方式: ${p.style}\n`;
-      if (p.length) t += `长度限制: >=${p.length}字\n`;
-      if (p.scenes) t += `场景: ${p.scenes}\n`;
-      if (p.play) t += `玩法: ${p.play}\n`;
-      if (p.position) t += `体位: ${p.position}\n`;
-      if (p.limits) t += `限制: ${p.limits}\n`;
-      if (p.orgasm !== '无要求') t += `高潮: ${p.orgasm}\n`;
-      if (p.cum) t += `射精部位: ${p.cum}\n`;
+      if (p.style) t += `故事方式: ${p.style} — 大纲须匹配此叙事节奏。\n`;
+      if (p.length) t += `长度限制: >=${p.length}字 — 节拍数 = ceil(总字数/3000)。\n`;
+      if (p.scenes) t += `场景: ${p.scenes} — 大纲核心场景必须包含此场景，并作为节拍中的 location_ref。\n`;
+      if (p.play) t += `玩法: ${p.play} — 大纲须在至少1个节拍的 key_actions 中体现此玩法。\n`;
+      if (p.position) t += `体位: ${p.position} — 大纲须在性行为节拍的 required_world_entries 中引用体位条目。\n`;
+      if (p.limits) t += `限制: ${p.limits} — 所有节拍不得出现此内容。写入 global_rules。\n`;
+      if (p.orgasm !== '无要求') t += `高潮: ${p.orgasm} — 大纲须在 erotic_phase 中安排对应的里程碑。\n`;
+      if (p.cum) t += `射精部位: ${p.cum} — 大纲在含内射/颜射的节拍中标注此部位为 sexual_milestone。\n`;
       return t;
     }
 
@@ -1056,20 +1784,11 @@
         }
         const isEarlyGame = state.history.filter(m => m.role === 'assistant').length <= 2;
         if (isEarlyGame) {
-          if (state.activeCards?.length) {
-            let cc = '【当前激活的角色卡】\n';
-            state.activeCards.forEach(c => { cc += `\n--- ${c.name} ---\n${c.content || JSON.stringify(c)}\n`; });
-            fullMessages.push({ role: 'system', content: cc });
-          }
-          if (state.outline) fullMessages.push({ role: 'system', content: '当前大纲:\n' + state.outline });
-          if (state.activeWorldBooks?.length) {
-            let wc = '【当前激活的世界书】\n';
-            state.activeWorldBooks.forEach(wb => {
-              wc += `\n=== ${wb.name} ===\n`;
-              (wb.entries || []).forEach(e => { wc += `- ${e.key}: ${e.content}\n`; });
-            });
-            fullMessages.push({ role: 'system', content: wc });
-          }
+          const cardBlock = buildCardInjectionBlock(true);
+          if (cardBlock) fullMessages.push({ role: 'system', content: cardBlock });
+          if (state.outline) fullMessages.push({ role: 'system', content: buildOutlineContext() });
+          const wbBlock = buildWorldInjectionBlock();
+          if (wbBlock) fullMessages.push({ role: 'system', content: wbBlock });
         }
         fullMessages.push(...chatMessages);
         hideLoading();
@@ -1085,6 +1804,9 @@
         });
         state.history.push({ role: 'assistant', content: story });
         saveState();
+
+        maybeAdvanceBeat(story);
+
         const optsEl = document.getElementById('optionsContainer');
         const origHTML = optsEl.innerHTML;
         optsEl.innerHTML = '<div style="color:#888;padding:8px;font-size:13px;">生成选项...</div>';
@@ -1118,20 +1840,11 @@
         }
         const isEarlyGame = state.history.filter(m => m.role === 'assistant').length <= 2;
         if (isEarlyGame) {
-          if (state.activeCards?.length) {
-            let cc = '【当前激活的角色卡】\n';
-            state.activeCards.forEach(c => { cc += `\n--- ${c.name} ---\n${c.content || JSON.stringify(c)}\n`; });
-            fullMessages.push({ role: 'system', content: cc });
-          }
-          if (state.outline) fullMessages.push({ role: 'system', content: '当前大纲:\n' + state.outline });
-          if (state.activeWorldBooks?.length) {
-            let wc = '【当前激活的世界书】\n';
-            state.activeWorldBooks.forEach(wb => {
-              wc += `\n=== ${wb.name} ===\n`;
-              (wb.entries || []).forEach(e => { wc += `- ${e.key}: ${e.content}\n`; });
-            });
-            fullMessages.push({ role: 'system', content: wc });
-          }
+          const cardBlock = buildCardInjectionBlock(true);
+          if (cardBlock) fullMessages.push({ role: 'system', content: cardBlock });
+          if (state.outline) fullMessages.push({ role: 'system', content: buildOutlineContext() });
+          const wbBlock = buildWorldInjectionBlock();
+          if (wbBlock) fullMessages.push({ role: 'system', content: wbBlock });
         }
         fullMessages.push(...chat);
         hideLoading();
@@ -1147,6 +1860,9 @@
         });
         state.history.push({ role: 'assistant', content: story });
         saveState();
+
+        maybeAdvanceBeat(story);
+
         const optsEl = document.getElementById('optionsContainer');
         const origHTML = optsEl.innerHTML;
         optsEl.innerHTML = '<div style="color:#888;padding:8px;font-size:13px;">生成选项...</div>';
@@ -1710,10 +2426,14 @@ document.getElementById('customInput').addEventListener('keydown', (e) => {  // 
         showLoading();
         try {
           const outlineSys = buildOutlineSystemMessage();
-          const cardsInfo = activeCards.map(c => c.content || JSON.stringify(c)).join('\n---\n');
-          const prefsText = buildPreferenceText();
-          const outline = await callAPI([{role:'system',content:outlineSys},{role:'user',content:`角色卡:\n${cardsInfo}\n偏好:\n${prefsText}\n请生成超详细色情大纲。`}],{maxTokens:120000});
-          state.outline = outline; document.getElementById('outlineEditor').value = outline; saveState(); hideLoading(); toast('大纲已重新生成');
+          const outlineUserMsg = buildOutlineUserMessage();
+          const outline = await callAPI([{role:'system',content:outlineSys},{role:'user',content:outlineUserMsg}],{maxTokens:120000});
+          const jsonMatch = outline.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            try { state.outline = JSON.parse(jsonMatch[0]); state.currentBeatIndex = 0; } catch(e) { state.outline = outline; }
+          } else { state.outline = outline; }
+          document.getElementById('outlineEditor').value = typeof state.outline === 'object' ? JSON.stringify(state.outline, null, 2) : state.outline;
+          saveState(); hideLoading(); toast('大纲已重新生成');
         } catch(e) { hideLoading(); toast('失败:'+e.message); }
       });
 
@@ -1728,6 +2448,144 @@ document.getElementById('customInput').addEventListener('keydown', (e) => {  // 
       document.getElementById('setApiMaxTokens').addEventListener('change', e => {
         state.apiMaxTokens = parseInt(e.target.value) || 384000;
         saveState();
+      });
+
+      // === 第三方格式转换器 ===
+      let convertPendingData = null;
+
+      function buildConvertPrompt(rawInput, format, target) {
+        const formatHints = {
+          auto: '输入格式未知。从JSON结构或文本特征自动判定。',
+          sillytavern: '输入=SillyTavern V2 角色卡JSON。字段: name,description,personality,scenario,first_mes,mes_example。',
+          character_ai: '输入=Character.AI角色定义文本。字段: name,description,greeting。',
+          chub_venus: '输入=Chub/Venus角色卡JSON。字段: name,description,personality,first_mes,example_dialogs。',
+          risuai: '输入=RisuAI角色卡格式。',
+          novelai_lorebook: '输入=NovelAI Lorebook JSON。条目格式: {keys:[],content:"",insertion_order:N}。',
+          plain_prose: '输入=纯文本/小说片段。',
+          wubby: '输入=酒馆WUBBY世界书。条目格式: [{key:"",content:""}]。'
+        };
+        const targetHints = {
+          auto: '自动判定。',
+          card: '强制输出card。worldbook留null。',
+          worldbook: '强制输出worldbook。card留null。',
+          both: '必须同时输出card和worldbook。'
+        };
+        return {
+          system: BASE_SYSTEM_PROMPT,
+          user: `=== 格式转换命令 ===
+
+将输入转换为 V4 标准格式。
+
+输入格式: ${formatHints[format] || formatHints.auto}
+输出目标: ${targetHints[target] || targetHints.auto}
+
+目标：V4 角色卡
+${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
+
+目标：V4 世界书条目
+${JSON.stringify(WORLD_ENTRY_TEMPLATE, null, 2)}
+
+输出JSON：{ "card": {...}或null, "worldbook": {"id":"wb_xxx","name":"","description":"","entries":[...]}或null }
+
+规则：
+1. 角色卡：name→name, description→personality.summary, scenario→scenario, first_mes→first_mes。mes_example统一为 {{user}}: ...\\n{{char}}: ...。身体外观→physical，不明确的强制推断。
+2. 世界书：NovelAI keys→triggers, insertion_order→priority(priority=1000-order)。WUBBY key→name。
+3. card和worldbook至少一个不为null。所有内容简体中文，性器官直白术语。
+
+输入:
+${rawInput}
+
+只输出JSON。`
+        };
+      }
+
+      async function executeConversion(previewOnly) {
+        const rawInput = document.getElementById('convertInputArea').value.trim();
+        if (!rawInput) { toast('请粘贴第三方数据'); return; }
+        const format = document.getElementById('convertFormatSelect').value;
+        const target = document.getElementById('convertTargetSelect').value;
+        const statusEl = document.getElementById('convertStatus');
+        const resultArea = document.getElementById('convertResultArea');
+        statusEl.textContent = '转换中...';
+        showLoading(); updateLoading('格式转换中...', 50);
+        try {
+          const p = buildConvertPrompt(rawInput, format, target);
+          const resp = await callAPI([{role:'system',content:p.system},{role:'user',content:p.user}], {maxTokens:16384,temperature:0.5,trackUsage:false,enableTools:false});
+          hideLoading();
+          const jsonMatch = resp.match(/\{[\s\S]*\}/);
+          if (!jsonMatch) { toast('未解析到JSON'); statusEl.textContent = ''; return; }
+          const converted = JSON.parse(jsonMatch[0]);
+          convertPendingData = converted;
+          resultArea.classList.remove('hidden');
+          if (converted.card) {
+            document.getElementById('convertResultCards').value = JSON.stringify(converted.card, null, 2);
+            document.getElementById('convertCardCount').textContent = '角色卡: ' + (converted.card.name || '(未命名)');
+            document.getElementById('convertSaveCardBtn').classList.remove('hidden');
+          } else {
+            document.getElementById('convertResultCards').value = '(未提取到角色卡)';
+            document.getElementById('convertCardCount').textContent = '角色卡: 无';
+            document.getElementById('convertSaveCardBtn').classList.add('hidden');
+          }
+          if (converted.worldbook) {
+            document.getElementById('convertResultWorld').value = JSON.stringify(converted.worldbook, null, 2);
+            document.getElementById('convertWorldCount').textContent = '世界书: ' + (converted.worldbook.name || '(未命名)') + ' (' + ((converted.worldbook.entries || []).length) + '条目)';
+            document.getElementById('convertSaveWorldBtn').classList.remove('hidden');
+          } else {
+            document.getElementById('convertResultWorld').value = '(未提取到世界书)';
+            document.getElementById('convertWorldCount').textContent = '世界书: 无';
+            document.getElementById('convertSaveWorldBtn').classList.add('hidden');
+          }
+          if (!converted.card && !converted.worldbook) toast('转换完成但未提取到有效数据');
+          statusEl.textContent = previewOnly ? '预览完成' : '转换完成';
+          if (!previewOnly) {
+            if (convertPendingData.card) {
+              convertPendingData.card.id = Date.now().toString(36);
+              state.cards.push({ id: convertPendingData.card.id, name: convertPendingData.card.name || '转换角色卡', content: JSON.stringify(convertPendingData.card) });
+              renderCardList(); toast('已保存角色卡');
+            }
+            if (convertPendingData.worldbook) {
+              const wb = normalizeWorldBookResult(convertPendingData.worldbook, convertPendingData.worldbook.name || '转换世界书');
+              wb.id = 'wb_' + Date.now();
+              state.worldBooks.push(wb);
+              if (window._renderWorldBookList) window._renderWorldBookList();
+              toast('已保存世界书');
+            }
+            saveState(); convertPendingData = null;
+          }
+        } catch(e) { hideLoading(); toast('转换失败: '+e.message); statusEl.textContent = '失败'; }
+      }
+
+      document.getElementById('convertPreviewBtn').addEventListener('click', () => executeConversion(true));
+      document.getElementById('convertApplyBtn').addEventListener('click', () => executeConversion(false));
+      document.getElementById('convertSaveCardBtn').addEventListener('click', () => {
+        if (!convertPendingData?.card) return;
+        const card = convertPendingData.card;
+        card.id = Date.now().toString(36);
+        state.cards.push({ id: card.id, name: card.name || '转换角色卡', content: JSON.stringify(card) });
+        saveState(); renderCardList();
+        toast('已保存角色卡');
+        document.getElementById('convertSaveCardBtn').classList.add('hidden');
+        document.getElementById('convertCardCount').textContent = '角色卡: 已保存 ✓';
+      });
+      document.getElementById('convertSaveWorldBtn').addEventListener('click', () => {
+        if (!convertPendingData?.worldbook) return;
+        const wb = normalizeWorldBookResult(convertPendingData.worldbook, convertPendingData.worldbook.name || '转换世界书');
+        wb.id = 'wb_' + Date.now();
+        state.worldBooks.push(wb);
+        saveState();
+        if (window._renderWorldBookList) window._renderWorldBookList();
+        toast('已保存世界书');
+        document.getElementById('convertSaveWorldBtn').classList.add('hidden');
+        document.getElementById('convertWorldCount').textContent = '世界书: 已保存 ✓';
+      });
+      document.getElementById('convertClearBtn').addEventListener('click', () => {
+        document.getElementById('convertResultArea').classList.add('hidden');
+        document.getElementById('convertResultCards').value = '';
+        document.getElementById('convertResultWorld').value = '';
+        document.getElementById('convertCardCount').textContent = '';
+        document.getElementById('convertWorldCount').textContent = '';
+        document.getElementById('convertStatus').textContent = '';
+        convertPendingData = null;
       });
 
       // 重置数据对话框
@@ -1803,10 +2661,31 @@ document.getElementById('customInput').addEventListener('keydown', (e) => {  // 
         if (!desc) { toast('请输入世界描述'); return; }
         showLoading(); updateLoading('生成世界书...', 30);
         try {
-          const p = { system: BASE_SYSTEM_PROMPT, user: `=== 世界书生成 ===\n根据描述生成一个色情世界观设定。包含3-8个条目，每个有key和content。输出JSON数组：[{"key":"","content":""}]\n\n只输出JSON。\n\n描述: ${desc}\n\n只输出JSON。` };
-          const resp = await callAPI([{role:'system',content:p.system},{role:'user',content:p.user}], {maxTokens:8192,temperature:0.7,trackUsage:false,enableTools:false});
-          const entries = JSON.parse(resp.match(/\[[\s\S]*\]/)?.[0] || resp);
-          state.worldBooks.push({ id: 'wb_' + Date.now(), name: desc.slice(0,20), entries });
+          const p = { system: BASE_SYSTEM_PROMPT, user: `=== 世界书生成 V4 ===
+
+根据描述生成 V4 世界书。输出以下 JSON 结构。不输出 JSON 之外的任何内容。
+
+${JSON.stringify({ id: "wb_自动生成", name: "书名", description: "用途", entries: [WORLD_ENTRY_TEMPLATE] }, null, 2)}
+
+生成规则：
+1. 必须在以下6个类别各生成至少1条：地点(≥2)、规则(≥1)、体位(≥2, group="sex_position")、随机事件(≥1, position="system", priority≥800)、道具(≥1)、对话规范(1)。
+2. 每条 id 格式：{category缩写}_{序号}，如 loc_bedroom_01。
+3. triggers 数组每项 ≥3 个中文触发词。
+4. content 用陈列式写法，一条一个事实。禁止写叙事段落。
+5. 体位类 content 必须包含：①姿势 ②插入方向 ③主导者 ④优势。
+6. 随机事件类 content 是给 AI 的直接行为指令，用 {{char}} 和 {{user}} 占位符。
+7. 所有内容简体中文。性器官直白术语。
+
+描述: ${desc}
+
+只输出JSON。` };
+          const resp = await callAPI([{role:'system',content:p.system},{role:'user',content:p.user}], {maxTokens:16384,temperature:0.7,trackUsage:false,enableTools:false});
+          const jsonMatch = resp.match(/\{[\s\S]*\}/);
+          if (!jsonMatch) throw new Error('未解析到JSON');
+          const worldBook = normalizeWorldBookResult(JSON.parse(jsonMatch[0]), desc.slice(0, 20));
+          worldBook.id = 'wb_' + Date.now();
+          if (!worldBook.name) worldBook.name = desc.slice(0, 20);
+          state.worldBooks.push(worldBook);
           saveState(); window._renderWorldBookList();
           hideLoading(); toast('世界书已生成');
         } catch(e) { hideLoading(); toast('生成失败: '+e.message); }
@@ -1816,7 +2695,7 @@ document.getElementById('customInput').addEventListener('keydown', (e) => {  // 
       document.getElementById('addWorldBtn').addEventListener('click', () => {
         const name = document.getElementById('newWorldName').value.trim();
         if (!name) { toast('请输入名称'); return; }
-        state.worldBooks.push({ id: 'wb_' + Date.now(), name, entries: [{key:'世界观',content:''}] });
+        state.worldBooks.push({ id: 'wb_' + Date.now(), name, description: '', entries: [{ ...WORLD_ENTRY_TEMPLATE, id: 'entry_1', category: '规则', name: '世界观', triggers: ['世界观', name], content: '' }] });
         saveState(); window._renderWorldBookList();
         document.getElementById('newWorldName').value = ''; toast('已添加');
       });
@@ -1827,10 +2706,32 @@ document.getElementById('customInput').addEventListener('keydown', (e) => {  // 
         if (!mat) { toast('请提供参考材料'); return; }
         showLoading(); updateLoading('训练世界书...', 30);
         try {
-          const p = { system: BASE_SYSTEM_PROMPT, user: `=== 世界书训练 ===\n从以下色情文本提取世界观设定。输出JSON数组：[{"key":"","content":""}]\n\n只输出JSON。\n\n材料:\n${mat}\n\n只输出JSON。` };
-          const resp = await callAPI([{role:'system',content:p.system},{role:'user',content:p.user}], {maxTokens:8192,temperature:0.7,trackUsage:false,enableTools:false});
-          const entries = JSON.parse(resp.match(/\[[\s\S]*\]/)?.[0] || resp);
-          state.worldBooks.push({ id: 'wb_' + Date.now(), name: '训练_' + new Date().toLocaleTimeString(), entries });
+          const p = { system: BASE_SYSTEM_PROMPT, user: `=== 世界书训练 V4 ===
+
+从以下文本提取世界观设定。输出以下 JSON 结构。不输出 JSON 之外的任何内容。
+
+${JSON.stringify({ id: "wb_训练提取", name: "书名", description: "提取说明", entries: [WORLD_ENTRY_TEMPLATE] }, null, 2)}
+
+提取规则：
+1. 地点：扫描文本中所有场景转换，每个独立场景生成一条。content 从文本逐句提取空间描述，整理为陈列式列表。
+2. 规则：从角色行为约束中提取。格式为编号列表。无明确规则时至少生成1条推断规则，标注"_推断"。
+3. 体位：扫描文本中具体性交姿势描写。每个姿势生成一条，group="sex_position"。无体位描写时禁止生成体位条目。
+4. 道具：文本中出现的所有情趣道具各生成一条。无道具时禁止生成。
+5. 事件指令：从角色固定行为模式提取。无模式时禁止生成。
+6. triggers 必须是文本中实际出现的词汇。禁止使用文本中未出现的触发词。
+
+材料:
+${mat}
+
+只输出JSON。` };
+          const resp = await callAPI([{role:'system',content:p.system},{role:'user',content:p.user}], {maxTokens:16384,temperature:0.7,trackUsage:false,enableTools:false});
+          const jsonMatch = resp.match(/\{[\s\S]*\}/);
+          if (!jsonMatch) throw new Error('未解析到JSON');
+          const worldBook = normalizeWorldBookResult(JSON.parse(jsonMatch[0]), '训练_' + new Date().toLocaleTimeString());
+          worldBook.id = 'wb_' + Date.now();
+          if (!worldBook.name) worldBook.name = '训练_' + new Date().toLocaleTimeString();
+          if (!worldBook.description) worldBook.description = '';
+          state.worldBooks.push(worldBook);
           saveState(); window._renderWorldBookList();
           hideLoading(); toast('世界书已训练完成');
         } catch(e) { hideLoading(); toast('失败: '+e.message); }
