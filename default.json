@@ -4410,14 +4410,12 @@
           "always": false
         }
       ]
-    }
-  ],
-  "worldBooks": [
+    },
     {
-  "id": "wb_brothel_street",
-  "name": "异界娼馆街",
-  "description": "精灵/兽人/魅魔/龙女各自开店的异界红灯区，熟客有固定指名新人从街口接散客",
-  "entries": [
+      "id": "wb_brothel_street",
+      "name": "异界娼馆街",
+      "description": "精灵/兽人/魅魔/龙女各自开店的异界红灯区，熟客有固定指名新人从街口接散客",
+      "entries": [
     {
       "id": "rule_brothel_district",
       "category": "规则",
@@ -4500,11 +4498,11 @@
     }
   ]
 },
-{
-  "id": "wb_hotspring_inn",
-  "name": "温泉旅馆·禁忌汤",
-  "description": "深山老林中的混浴温泉旅馆，池水有特殊功效——泡越久越无法抗拒触碰的冲动",
-  "entries": [
+    {
+      "id": "wb_hotspring_inn",
+      "name": "温泉旅馆·禁忌汤",
+      "description": "深山老林中的混浴温泉旅馆，池水有特殊功效——泡越久越无法抗拒触碰的冲动",
+      "entries": [
     {
       "id": "rule_hotspring_effect",
       "category": "规则",
@@ -4651,6 +4649,8 @@
       "characterFilter": [],
       "recursive": false,
       "always": false
+    }
+      ]
     },
     {
       "id": "wb_slave_auction",
@@ -4874,7 +4874,5 @@
         }
       ]
     }
-  ]
-}
   ]
 }
