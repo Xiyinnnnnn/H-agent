@@ -1461,8 +1461,48 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
       return msg;
     }
 
+    /* ================== API错误码与重试机制 ================== */
+    const ERROR_CODES = {
+      API_TIMEOUT:    { code:'API_TIMEOUT',    level:'ERROR', retry:true,  maxRetries:3, backoff:1000 },
+      API_RATE_LIMIT: { code:'API_RATE_LIMIT', level:'ERROR', retry:true,  maxRetries:5, backoff:5000 },
+      API_AUTH_FAILED:{ code:'API_AUTH_FAILED',level:'ERROR', retry:false, message:'API Key 无效，请检查设置' },
+      API_NETWORK:    { code:'API_NETWORK',    level:'ERROR', retry:true,  maxRetries:3, backoff:2000 },
+      API_SERVER_5XX: { code:'API_SERVER_5XX', level:'ERROR', retry:true,  maxRetries:3, backoff:2000 }
+    };
+
+    const errorHandler = {
+      retryCounts: {},
+      classifyError(err) {
+        const msg = (err.message||'').toLowerCase();
+        const status = err.status || 0;
+        if (status===401||status===403||msg.includes('auth')||msg.includes('unauthorized')||msg.includes('key')) return ERROR_CODES.API_AUTH_FAILED;
+        if (status===429||msg.includes('rate')||msg.includes('limit')||msg.includes('too many')) return ERROR_CODES.API_RATE_LIMIT;
+        if (status>=500||msg.includes('server error')||msg.includes('internal error')) return ERROR_CODES.API_SERVER_5XX;
+        if (msg.includes('timeout')||msg.includes('timed out')||err.name==='AbortError') return ERROR_CODES.API_TIMEOUT;
+        if (msg.includes('network')||msg.includes('fetch')||msg.includes('connection')||msg.includes('econnrefused')) return ERROR_CODES.API_NETWORK;
+        return null;
+      },
+      shouldRetry(err) {
+        const def = this.classifyError(err);
+        if (!def||!def.retry) return false;
+        const key = def.code+'_api';
+        this.retryCounts[key] = (this.retryCounts[key]||0)+1;
+        return this.retryCounts[key] <= (def.maxRetries||3);
+      },
+      getRetryDelay(err) {
+        const def = this.classifyError(err);
+        const count = this.retryCounts[(def?.code||'UNKNOWN')+'_api']||1;
+        return (def?.backoff||1000)*Math.pow(2,count-1);
+      },
+      resetRetry(err) {
+        const def = this.classifyError(err);
+        if (def) delete this.retryCounts[def.code+'_api'];
+      }
+    };
+
     /* ================== API调用（真流式+工具循环） ================== */
     async function callAPI(messages, options = {}) {
+      try {
 
       const {
         model = state.model, baseUrl = state.apiBaseUrl, apiKey = state.apiKey,
@@ -1496,7 +1536,9 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
         if (!res.ok) {
           let errMsg = `HTTP ${res.status}`;
           try { const e = await res.json(); errMsg = e.error?.message || errMsg; } catch (e) {}
-          throw new Error('API错误: ' + errMsg);
+          const err = new Error('API错误: ' + errMsg);
+          err.status = res.status;
+          throw err;
         }
         const data = await res.json();
         const msg = data.choices?.[0]?.message;
@@ -1537,7 +1579,9 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
       if (!streamRes.ok) {
         let errMsg = `HTTP ${streamRes.status}`;
         try { const e = await streamRes.json(); errMsg = e.error?.message || errMsg; } catch (e) {}
-        throw new Error('API错误: ' + errMsg);
+        const err = new Error('API错误: ' + errMsg);
+        err.status = streamRes.status;
+        throw err;
       }
 
       const reader = streamRes.body.getReader();
@@ -1579,6 +1623,19 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
       }
       if (state.abortController === controller) state.abortController = null;
       return fullContent;
+
+      } catch (e) {
+        if (state.abortController === controller) state.abortController = null;
+        if (e.name === 'AbortError') throw new Error('请求已取消');
+        if (errorHandler.shouldRetry(e)) {
+          const delay = errorHandler.getRetryDelay(e);
+          updateLoading(`请求失败，${(delay/1000).toFixed(0)}秒后重试...`, 50);
+          await new Promise(r => setTimeout(r, delay));
+          return callAPI(messages, options);
+        }
+        errorHandler.resetRetry(e);
+        throw e;
+      }
     }
 
     function updateCumulativeDisplay() {
@@ -1916,7 +1973,10 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
       document.getElementById('prefLimits').value = state.preferences.limits || '';
       document.getElementById('prefOrgasm').value = state.preferences.orgasm || '无要求';
       document.getElementById('prefCum').value = state.preferences.cum || '';
-      document.getElementById('outlineEditor').value = state.outline || '';
+      const rawOutline = state.outline;
+      document.getElementById('outlineEditor').value = (typeof rawOutline === 'object' && rawOutline !== null)
+        ? JSON.stringify(rawOutline, null, 2)
+        : (rawOutline || '');
       renderCardList();
       if (window._renderWorldBookList) window._renderWorldBookList();
       renderNarrativePresets();
@@ -2082,7 +2142,10 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
         return;
       }
       state.editingCardIndex = index;
-      document.getElementById('editCardContent').value = state.cards[index].content || '';
+      const rawContent = state.cards[index].content;
+      document.getElementById('editCardContent').value = (typeof rawContent === 'object' && rawContent !== null)
+        ? JSON.stringify(rawContent, null, 2)
+        : (rawContent || '');
 
       document.getElementById('editCardModal').classList.remove('hidden');
     }
@@ -2110,11 +2173,13 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
         state.editingCardIndex = -1;
         return;
     }
-      state.cards[idx].content = newContent;
       try {
         const parsed = JSON.parse(newContent);
+        state.cards[idx].content = parsed;
         if (parsed.name) state.cards[idx].name = parsed.name;
-      } catch (e) {}
+      } catch (e) {
+        state.cards[idx].content = newContent;
+      }
       const card = state.cards[idx];
       const activeIdx = state.activeCards.findIndex(ac => ac.id === card.id);
       if (activeIdx !== -1) {
@@ -2418,8 +2483,12 @@ document.getElementById('customInput').addEventListener('keydown', (e) => {  // 
 });
 
 
-      document.getElementById('saveOutlineBtn').addEventListener('click', () => { state.outline = document.getElementById('outlineEditor').value.trim(); saveState(); toast('已保存'); });
-      document.getElementById('clearOutlineBtn').addEventListener('click', () => { state.outline = ''; document.getElementById('outlineEditor').value = ''; saveState(); });
+      document.getElementById('saveOutlineBtn').addEventListener('click', () => {
+        const raw = document.getElementById('outlineEditor').value.trim();
+        try { state.outline = JSON.parse(raw); state.currentBeatIndex = 0; } catch(e) { state.outline = raw; }
+        saveState(); toast('已保存');
+      });
+      document.getElementById('clearOutlineBtn').addEventListener('click', () => { state.outline = ''; state.currentBeatIndex = 0; document.getElementById('outlineEditor').value = ''; saveState(); });
       document.getElementById('regenerateOutlineBtn').addEventListener('click', async () => {
         const activeCards = getActiveCards();
         if (!activeCards.length) { toast('没有激活的角色卡'); return; }
