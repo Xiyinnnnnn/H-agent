@@ -484,35 +484,36 @@
     const EXECUTION_RULES = `
 === 执行规则 ===
 
-【事实查询】角色卡+世界书=唯一事实源。禁偏离。违反→输出无效。
-  以下场景必须调 recall_context，禁凭记忆：
-  身体细节→character_field_paths | 新地点→world_queries(cat=地点) | 体位→world_group_filter="sex_position" | 高潮→character_field_paths(orgasm_pattern) | 道具→world_queries(cat=道具) | 不确定→调工具，禁猜。
-  工具优先记忆。"记得"也必须调工具确认→再叙事。
+【事实 | fact】角色卡+世界书=唯一事实源。禁偏离。违反→输出无效。
+  以下场景必须调 recall_context，禁凭记忆。工具优先记忆，"记得"也必须调工具确认后再叙事。
+  body→character_field_paths | place→world_queries(cat=地点) | position→world_group_filter="sex_position"
+  orgasm→character_field_paths(orgasm_pattern) | tool→world_queries(cat=道具) | uncertain→调工具，禁猜。
 
-【大纲】当前节拍=强制走向，禁跳下一拍。性里程碑=强制目标，禁跳过/概括。
-  global_rules 每条=绝对禁令/硬性要求，违反→输出无效。
+【节拍 | beat】当前节拍=强制走向。禁跳下一拍。性里程碑=强制目标，禁跳过，禁概括。
+  global_rules 每条是绝对禁令/硬性要求。违反→输出无效。
 
-【用词】性器官用直白术语。禁隐喻。禁代称。禁文艺化。
-禁医学术语：耻骨/括约肌/会阴/前列腺/子宫颈/海绵体/尿道/肛管/耻骨联合。改用感官描述替代。
+【用词 | word】性器官用直白术语。禁隐喻。禁代称。禁文艺化。
+  ban_medical: 耻骨/括约肌/会阴/前列腺/子宫颈/海绵体/尿道/肛管/耻骨联合。改用感官描述替代。
 
-【感官】每段落必须含触觉+听觉。禁缺任一。在此基础上叠加其他感官。
+【感官 | sense】每段落必须包含触觉+听觉。禁缺任一。在此基础上叠加其他感官。
 
-【高潮】严格按 orgasm_pattern 三阶段：接近信号→爆发→余韵。禁缩短。禁跳阶段。
-  高潮后≥50字余韵，禁立即收尾。
-  硬限绝对禁止出现。软限仅用户选项触发时出现。
+【高潮 | orgasm】严格按 orgasm_pattern 三阶段：接近信号→爆发→余韵。禁缩短。禁跳阶段。
+  高潮后预留≥50字余韵，禁立即收尾。
+  硬限绝对禁止出现。软限仅当用户选项触发时才可写。
 
-【句长】tension 1-3: 长句 | 4-6: 中句, 动作/反应交替 | 7-8: 短句, 动作紧跟生理反应 | 9-10: 极短句, 一句一画面, 禁心理活动, 禁完整对话。
+【句长 | pace】tension 1-3→长句 | 4-6→中句，动作与反应交替 | 7-8→短句，动作紧跟生理反应
+  9-10→极短句，一句一个画面。此时禁心理活动，禁完整对话。
 
-【输出】禁元评论/解释/系统消息/角色名标签/分段标记。
-禁破折号插入解释性旁白（如"不是……而是……的那种XX"）。
-禁跳出角色视角进行科普或分析。
-叙事统一使用第三人称。禁止出现第一人称"我"的视角。禁止在角色A和角色B的内心独白/感知之间跳切。始终用一个固定外部视角描叙所有角色的言行。
+【输出 | out】禁元评论。禁解释。禁系统消息。禁角色名标签。禁分段标记。
+  禁破折号插入解释性旁白（如"不是……而是……的那种XX"）。
+  禁跳出角色视角做科普或分析。
+  有用户卡时→用户卡角色始终用"你"指代。其余角色用角色卡中的名字或爱称指代，禁止用"他/她"模糊代称。
+  无用户卡时→所有角色用名字或爱称指代。禁第一人称"我"。禁跳切角色内心独白。始终用固定外部视角。
 
-【多人≥2角色】
-  每段覆盖全部在场角色，禁任何角色整段无描写。
-  动作→该角色生理反应→立即切另一角色。禁连续两句同角色。
-  禁概括("轮流""一个接一个")。写每次进入和每个角色的反应。
-  每段≥3种感官，≥2角色写入感官。`;
+【多人 | multi】≥2角色在场时，每段覆盖全部在场角色。禁任何角色整段无描写。
+  写一个角色的动作→紧跟该角色的生理反应→立即切到另一角色。禁连续两句同角色。
+  禁概括式写法（"轮流""一个接一个"）。写每次进入和每个角色各自的反应。
+  每段≥3种感官。≥2个角色写入感官。`;
 
     const WORLD_ENTRY_TEMPLATE = {
       id: "",
@@ -948,12 +949,7 @@
           `→ 从原文提取四维度填入phase_writing_rule。模块中的禁令不得放宽。\n`;
       }
 
-      return BASE_SYSTEM_PROMPT + `
-
-=== 输出格式 ===
-
-只输出JSON。禁其他文字。
-
+      const JSON_TEMPLATE_LITERAL = `
 {
   "title": "...",
   "total_estimated_words": 数字,
@@ -976,139 +972,63 @@
     "phase_writing_rule": "句子用[...]，感官以[...]为主，心理活动[...]，对话[...]"
   }],
   "global_rules": ["必须/禁止 ..."]
+}`;
+
+      return BASE_SYSTEM_PROMPT + `\nout | json_only | no_extra_text\n` +
+        JSON_TEMPLATE_LITERAL + `\n${budgetRef}\n${styleRef}\n` +
+        `→ precalc | 以下六项必须算完再写第一个beat
+  A|时长: 短篇5k~15k|中篇15k~30k|长篇30k~60k|史诗60k~120k。与用户偏好冲突→时长优先。
+  B|beat下限: max(ceil(total/3000),5)。每beat 1k~4k字。
+  C|硬上限(任一超标→无效):
+     短篇: beats5~8 | 高潮1~2次 | 体位≤2
+     中篇: beats8~15| 高潮2~3次 | 体位3~5
+     长篇: beats15~25| 高潮3~5次 | 体位5~8
+     史诗: beats25~40| 高潮≥5次 | 体位≥8
+     高潮总次数=男射次数+女潮/绝顶次数。同beat同时高潮→各计1次,累加。
+  D|配额: fore=total×${fp} ie=total×${ie} bu=total×${bu} cl=total×${cl} af=total×${af}
+     该phase内所有beat estimated_words之和与配额偏差≤±5%。
+  E|节奏(取一组,全程锁定):
+     慢玩: 起步1~3|步∈{0,+1}|到10后保持不升|afterglow首→3~5|禁高潮连排
+     均衡: 起步3~5|步∈{+1,+2}|到10后≤2beat进afterglow|afterglow首→3~5
+     激烈: 起步可达7|步∈{+2,+3}|到10后可持续|afterglow首骤降3~5
+  F|体位: 去重性交体位名称数。同体位多次计1种。仅插入及之后phase计数。
+
+→ beat { 总数≥B步下限 | 每phase≥1(缺→无效) | 字符≥3→foreplay≥2且buildup≥2 | 同phase可连排 }
+
+→ pace {
+  slow: foreplay≥3beat climax≤2beat | tension首∈[1,3]步差∈{0,+1}到10保持不升
+    afterglow首∈[3,5]只降 | key_actions≤2条/beat | 体位切换≥3beat间隔
+    允: 纯调情/纯对话beat(不计phase计数) | 禁: insertion_early起手 | climax相邻 | 事件密度≥3
+  balanced: foreplay1~2beat climax2~3beat | tension首∈[3,5]步差∈{+1,+2}到10后≤2beat进afterglow
+    禁: foreplay=0 | climax≥4 | 单步跳≥3级
+  intense: foreplay≤1(可为0) climax≥3 | tension首∈[1,7]步差∈{+2,+3}到10可持续
+    体位可每beat切换 | 禁: 纯心理 | 纯对话beat | 长句(>20字)占比>30%
 }
 
-${budgetRef}
-${styleRef}
+→ validate { beat总数+高潮总次数+体位种类→全部落入C步区间 | milestone精确反映总高潮次数
+  史诗≥2次射精须标"第1次射精""第2次射精" }
 
-══════════════ 构造前强制计算 ══════════════
+→ content {
+  按D配额分配每beat字数,生成后逐phase验偏差 | key_actions每条≤30字,只写主干,禁描写/心理/环境
+  milestone线性推进,禁回退：接吻→抚摸→手指进入→口交→插入→高潮(第1次)→高潮(第2次)
+  required_card_fields用点号路径,禁简写 | transition_to_next写具体画面,禁抽象概括
+  global_rules每条"必须"/"禁止"开头,至少含: 硬限禁令+高潮规则+体裁禁令,缺一类→无效
+  phase_writing_rule每beat必填,从styleRef原文提取: 句长→感官→心理→对话固定一句格式
+    模块禁心理→必须"无"(禁放宽为"≤10%") | 模块禁对话→必须"禁止"(禁放宽为"短促")
+    不同phase规则有差异。
+  chars≥3→global_rules加: key_actions拆到角色 | 高潮beat标各角色顺序 | 禁beat只涉部分角色
+}
 
-以下六项必须算完再写第一个beat。
-
-A. 时长级别
-   total_estimated_words 落入哪个区间:
-   短篇 5000~15000 | 中篇 15000~30000 | 长篇 30000~60000 | 史诗 60000~120000
-   与用户长度偏好冲突→时长优先。调整total_estimated_words入区间。
-
-B. beat总数下限
-   minBeats = max(ceil(total_estimated_words / 3000), 5)
-   每beat 1000~4000字。
-
-C. 时长硬上限（任一超标→无效）
-   · 短篇: beats 5~8  | 高潮总次数 1~2 | 体位种类 ≤2
-   · 中篇: beats 8~15 | 高潮总次数 2~3 | 体位种类 3~5
-   · 长篇: beats 15~25| 高潮总次数 3~5 | 体位种类 5~8
-   · 史诗: beats 25~40| 高潮总次数 ≥5  | 体位种类 ≥8
-
-   高潮总次数 = 男性射精次数 + 女性潮吹/绝顶次数。
-   同beat内两人同时高潮→各计1次，累加。
-   此数必须 ≤ 该级别上限。
-
-D. 各phase精确配额
-   foreplay 配额      = total_estimated_words × foreplay%
-   insertion_early 配额 = total_estimated_words × insertion_early%
-   buildup 配额       = total_estimated_words × buildup%
-   climax 配额        = total_estimated_words × climax%
-   afterglow 配额     = total_estimated_words × afterglow%
-   该phase内所有beat的estimated_words之和与配额偏差 ≤ ±5%。
-
-E. 节奏模式参数（根据用户选择取一组，全程锁定）
-   慢玩: 起步1~3 | 步长∈{0,+1} | 到10后保持不升 | afterglow首beat→3~5 | 高潮连排禁止
-   均衡: 起步3~5 | 步长∈{+1,+2} | 到10后≤2beat必须进afterglow | afterglow首beat→3~5
-   激烈: 起步可达7 | 步长∈{+2,+3} | 到10后可持续 | afterglow首beat骤降3~5
-
-F. 体位种类计数规则
-   去重后的性交体位名称数。同一体位多次出现只计1种。
-   仅在插入及之后的phase计数。
-
-══════════════ 一、节拍数量 ══════════════
-
-1. total_estimated_words ≥ 用户长度要求。无指定→≥角色数×5000(min 10000)。
-2. beat总数 ≥ B步下限。
-3. 每个phase至少1beat。缺phase→无效。
-4. 角色≥3: foreplay≥2beat 且 buildup≥2beat。
-5. 同phase可连排。
-
-══════════════ 二、节奏模式 ══════════════
-
-【慢玩】
-· foreplay ≥3beat  climax ≤2beat
-· tension: 首beat∈[1,3]。每步差∈{0,+1}。到10后保持但不再升。
-  afterglow首beat∈[3,5]。afterglow内tension只降不升。
-· key_actions ≤2条/beat
-· 体位切换间隔≥3beat
-· 允许: 纯调情/纯对话beat（不计入erotic_phase计数，不参与预算核算）
-· 禁止: 从insertion_early起手 | climax相邻 | 单beat事件密度≥3
-
-【均衡】
-· foreplay 1~2beat  climax 2~3beat
-· tension: 首beat∈[3,5]。每步差∈{+1,+2}。到10后≤2beat必须进afterglow。
-  afterglow首beat∈[3,5]。afterglow内tension只降不升。
-· key_actions 2~3条/beat
-· 禁止: foreplay=0 | climax≥4beat | 单步tension跳≥3级
-
-【激烈】
-· foreplay ≤1beat(可为0)  climax ≥3beat
-· tension: 首beat∈[1,7]。每步差∈{+2,+3}。到10后可持续。
-  afterglow首beat∈[3,5]。afterglow内tension只降不升。
-· key_actions ≥3条/beat
-· 体位可每beat切换
-· 禁止: 纯心理段 | 纯对话beat | 长句(>20字)占比>30%
-
-══════════════ 三、时长校验 ══════════════
-
-6. beat总数、高潮总次数、体位种类数→全部落入C步区间。
-7. sexual_milestone精确反映总高潮次数。史诗级≥2次射精须标"第1次射精""第2次射精"。
-
-══════════════ 四、内容规则 ══════════════
-
-8. 按D步配额分配每beat字数。生成后逐phase求和验偏差。
-
-9. key_actions每条≤30字，只写主干动作。禁描写/心理/环境。
-
-10. sexual_milestone线性推进，禁回退。
-    正确: 接吻→抚摸→手指进入→口交→插入→高潮(第1次)→高潮(第2次)
-    错误: 插入后回退到抚摸。
-
-11. required_card_fields用点号路径。禁简写。
-
-12. transition_to_next写具体画面。禁"气氛更加热烈"类抽象句。
-
-13. global_rules每条以"必须"或"禁止"开头。至少含:
-    硬限禁令 | 高潮规则 | 体裁禁令
-    缺一类→无效。
-
-14. phase_writing_rule每beat必填。从上方styleRef中该phase的原文提取四维度:
-    句长策略 → "句子用[...]"
-    主导感官 → "感官以[...]为主"
-    心理活动 → "心理活动[无|≤10%]"（模块禁心理→必须写"无"，不得放宽为"≤10%"）
-    对话策略 → "对话[完整|短促|禁止|仅破碎单音节+♡]"（模块禁对话→必须写"禁止"，不得放宽为"短促"）
-    格式固定为一句: "句子用[X]，感官以[X]为主，心理活动[X]，对话[X]"
-    不同phase之间规则必须有差异。
-
-15. active_characters≥3时，global_rules额外加三行:
-    必须: key_actions拆分到具体角色
-    必须: 高潮beat标注各角色高潮顺序
-    禁止: 任何beat只涉及部分角色
-
-══════════════ 五、输出前逐项自检 ══════════════
-
-全部通过才输出JSON。
-
-□ beat总数 ≥ B步下限?  ceil(total/3000)=__ 实际=__
-□ 5phase各≥1?  fore=__ ie=__ bu=__ cl=__ af=__
-□ 高潮总次数≤C步上限?  男射__+女潮__=总__  上限__
-□ 体位种类在C步区间?  种类__  区间__
-□ 预算偏差≤±5%?
-  fore:配额__ 实__ 偏__% | ie:配额__ 实__ 偏__% | bu:配额__ 实__ 偏__%
-  cl:配额__ 实__ 偏__% | af:配额__ 实__ 偏__%
-□ tension序列合规?
-  序列:[列出所有值]  步差:[列出相邻差]  模式允许:{__}
-  afterglow首beat在范围内?  持续/天花板检查?
-□ 每条phase_writing_rule未放宽模块禁令?
-□ global_rules含硬限+高潮+体裁三类?
-□ milestone线性无回退?
-□ 全部key_actions≤30字?
+→ checklist | 全部通过才输出JSON
+  □ beat≥B下限? ceil(total/3000)=__ 实=__
+  □ 5phase各≥1? fore=__ ie=__ bu=__ cl=__ af=__
+  □ 高潮≤C上限? 男__+女__=__ 上限__
+  □ 体位在C区间? 种__ 区间__
+  □ 预算偏差≤±5%? fore/ie/bu/cl/af 各配额__实__偏__%
+  □ tension序列合规? 序列[...]步差[...]模式{__} afterglow首在范围?
+  □ phase_writing_rule未放宽模块禁令?
+  □ global_rules含硬限+高潮+体裁?
+  □ milestone线性无回退? □ key_actions全≤30字?
 
 禁输出JSON之外内容。`;
     }
@@ -1207,158 +1127,120 @@ F. 体位种类计数规则
 
 
     function buildSummarySystemMessage() {
-      return BASE_SYSTEM_PROMPT + '\n\n=== 剧情压缩指令【最高优先级】 ===\n' +
-        '收到对话历史后按以下层级压缩。禁输出非压缩内容。\n\n' +
-        '【层级1-最近2轮(4条)】原文完整输出。标[原文]。一字不改。禁压缩。\n' +
-        '【层级2-次近3轮(6条)】每轮压为一段(150-300字)。保留叙事风格/句长/感官密度。禁退化为要点。\n' +
-        '【层级3-更早】合并为摘要。每个关键转折一句话。丢弃非关键过渡/重复描写/日常寒暄。\n\n' +
-        '【逐角色必须保留】\n' +
-        '1.身体状态: 穿着/裸露部位/体液位置量/敏感部位状态(勃起/湿润/红肿)\n' +
-        '2.空间位置: 谁在谁方位，身体接触点\n' +
-        '3.性里程碑: 口交/手指进入/阴道插入/肛交/高潮——谁对谁，什么部位\n' +
-        '4.高潮记录: 每角色已高潮次数/方式/体液去向\n' +
-        '5.关键对话: 影响关系或剧情的一句原文\n' +
-        '6.硬限相关: 痛觉/不适/安全词/拒绝——精确保留，一字不丢\n\n' +
-        '【丢弃】重复3次以上的同角色同部位生理描写(只留变化节点) | 元评论/系统提示/AI确认 | 非情色无关对话\n\n' +
-        '【格式】按时间顺序。最近2轮→[原文]包裹。其余→[压缩]。每角色状态快照一行，角色名开头。禁解释/道歉/"我将压缩"。';
+      return BASE_SYSTEM_PROMPT + '\n=== compress | strict ===\n' +
+        '收到对话历史按以下层级压缩。禁输出非压缩内容。\n' +
+        '→ L1(近2轮4条): 原文完整输出, 标[原文], 一字不改。\n' +
+        '→ L2(次近3轮6条): 每轮→一段150-300字, 保留叙事风格+句长+感官密度, 禁退化为要点。\n' +
+        '→ L3(更早): 合并摘要, 每关键转折一句话, 丢弃过渡/重复描写/寒暄。\n' +
+        'keep | 身体: 穿着+裸露部位+体液位置量+敏感部位状态(勃起/湿润/红肿)\n' +
+        'keep | 空间: 谁在谁方位+身体接触点\n' +
+        'keep | 里程碑: 口交/手指进入/阴道插入/肛交/高潮→谁对谁+部位\n' +
+        'keep | 高潮: 每角色已高潮次数+方式+体液去向\n' +
+        'keep | 对话: 影响关系或剧情的一句原文\n' +
+        'keep | 硬限: 痛觉/不适/安全词/拒绝→精确保留, 一字不丢\n' +
+        'drop | 同角色同部位生理描写重复≥3次(仅留变化节点) | 元评论/系统提示/AI确认 | 非情色无关对话\n' +
+        'fmt | 时间序。近2轮→[原文]。其余→[压缩]。每角色状态快照一行, 角色名开头。禁解释。';
     }
 
     function buildTrainNarrativePrompt(material) {
       return {
         system: BASE_SYSTEM_PROMPT,
-        user: `=== 叙事风格训练 V4 ===
+        user: `train | narrative_v4 | json_only
 
-从以下色情文本中提取完整的叙事模块数据。输出以下 JSON 结构。不输出 JSON 之外的任何内容。
+从以下色情文本提取完整叙事模块。输出JSON。禁额外文本。
 
 {
   "author_persona": {
-    "style": "从[叙述体/对话体/混合体]中单选",
-    "tone": "从[直白情色/浪漫/粗暴/支配/服从/玩弄/偷情]中单选。包含一句话整体印象描述。",
-    "strengths": ["选择2-3个：具体生理描写/动作驱动/感官堆叠/节奏控制/对话真实/氛围营造"],
-    "sentence_style": "从[长句派/短句派/混合派]中单选，附一句话说明",
-    "specialty": "从[言情/感官/剧情/硬核]中单选。附一句话描述写作特点（如'写身体直接——不写她很兴奋，写乳头挺立的精确变化'）"
+    "style": "叙述体|对话体|混合体",
+    "tone": "直白情色|浪漫|粗暴|支配|服从|玩弄|偷情。附一句话整体印象。",
+    "strengths": ["选2-3: 具体生理描写/动作驱动/感官堆叠/节奏控制/对话真实/氛围营造"],
+    "sentence_style": "长句派|短句派|混合派, 附一句话说明",
+    "specialty": "言情|感官|剧情|硬核。附一句话写作特点(如'写乳头挺立的精确变化,不写她很兴奋')"
   },
   "vocabulary": {
-    "action_verbs": ["至少5个，从文本逐词收集"],
-    "genital_terms": ["文本中出现的所有性器官称呼，至少3个"],
-    "body_parts": ["文本中出现的所有身体部位名词，至少5个"],
-    "moans": ["文本中出现的所有呻吟拟声词，至少5个。有♡标记的保留♡"],
-    "ejaculation": ["文本中出现的所有射精相关动词，至少3个"],
-    "fluids": ["文本中出现的所有体液名词，至少3个"],
-    "sound_effects": ["文本中出现的所有拟声词（水声/撞击声/舔舐声），至少3个。无则标注空数组"]
+    "action_verbs": ["≥5个,逐词从文本收集"],
+    "genital_terms": ["≥3个性器官称呼"],
+    "body_parts": ["≥5个身体部位名词"],
+    "moans": ["≥5个呻吟拟声词,♡保留"],
+    "ejaculation": ["≥3个射精动词"],
+    "fluids": ["≥3个体液名词"],
+    "sound_effects": ["≥3个拟声词(水声/撞击/舔舐),无则[]"]
   },
   "erotic_pacing": {
-    "foreplay_phase": {
-      "word_budget_ratio": "数字%",
-      "style": "从此阶段文本中提取句法规则：句长倾向、主写感官的种类、对话占比、心理活动占比",
-      "example_sentence": "从文本中摘取1句此阶段的典型句子"
-    },
-    "insertion_early": {
-      "word_budget_ratio": "数字%",
-      "style": "从此阶段文本中提取句法规则：动作与反应的交替模式、触觉描写的具体方式",
-      "example_sentence": "从文本中摘取1句"
-    },
-    "buildup_phase": {
-      "word_budget_ratio": "数字%",
-      "style": "从此阶段文本中提取句法规则：句子缩短的程度、内部感受描写的具体方式",
-      "example_sentence": "从文本中摘取1句"
-    },
-    "climax_phase": {
-      "word_budget_ratio": "数字%",
-      "style": "从此阶段文本中提取句法规则：短句轰炸的程度、被禁的元素（心理活动/完整对话）",
-      "example_sentence": "从文本中摘取1句"
-    },
-    "afterglow_phase": {
-      "word_budget_ratio": "数字%",
-      "style": "从此阶段文本中提取句法规则：恢复长句的方式、余韵描写的侧重点",
-      "example_sentence": "从文本中摘取1句"
-    }
+    "foreplay_phase":      { "word_budget_ratio":"%", "style":"句长倾向+主宰感官+对话占比+心理占比", "example_sentence":"原句摘取20-40字" },
+    "insertion_early":     { "word_budget_ratio":"%", "style":"动作↔反应交替模式+触觉描写方式", "example_sentence":"原句摘取20-40字" },
+    "buildup_phase":       { "word_budget_ratio":"%", "style":"句长缩短程度+内部感受描写方式", "example_sentence":"原句摘取20-40字" },
+    "climax_phase":        { "word_budget_ratio":"%", "style":"短句程度+被禁元素(心理/完整对话)", "example_sentence":"原句摘取20-40字" },
+    "afterglow_phase":     { "word_budget_ratio":"%", "style":"恢复长句方式+余韵侧重", "example_sentence":"原句摘取20-40字" }
   },
-  "sensory_priority": ["按文本实际使用频率排列。必须包含[触觉/听觉/内部感受/视觉/嗅觉]中的5项"],
-  "dialogue_integration": "从[对话嵌入动作中不独立成段/对话独立成段/少对话全靠描写]中单选。附一句话具体说明（如'叫床话短促破碎脏，高潮时退化为单音节'）",
-  "multi_person_pacing": {
-    "_note": "如果材料是单人场景，此对象所有字段填null。如果材料涉及≥3人，按以下结构提取",
-    "foreplay_phase": {"word_budget_ratio": "数字%或null", "style": "多人前戏句法规则或null"},
-    "insertion_early": {"word_budget_ratio": "数字%或null", "style": "多人插入初期句法规则或null"},
-    "buildup_phase": {"word_budget_ratio": "数字%或null", "style": "多人快感积累句法规则或null"},
-    "climax_phase": {"word_budget_ratio": "数字%或null", "style": "多人高潮句法规则或null"},
-    "afterglow_phase": {"word_budget_ratio": "数字%或null", "style": "多人余韵句法规则或null"}
+  "sensory_priority": ["按频率排,含触觉/听觉/内部感受/视觉/嗅觉5项"],
+  "dialogue_integration": "对话嵌动作/对话独立/少对话靠描写。附一句话说明(如'叫床短促破碎脏,高潮退化为单音节')",
+  "multi_person_pacing": { "_note":"单人→全null, ≥3人→提取",
+    "foreplay_phase":{"word_budget_ratio":"%或null","style":"或null"},
+    "insertion_early":{"word_budget_ratio":"%或null","style":"或null"},
+    "buildup_phase":{"word_budget_ratio":"%或null","style":"或null"},
+    "climax_phase":{"word_budget_ratio":"%或null","style":"或null"},
+    "afterglow_phase":{"word_budget_ratio":"%或null","style":"或null"}
   },
   "multi_person_vocabulary": {
-    "position_words": ["多人位置词，至少5个或null"],
-    "interaction_verbs": ["多人互动动词，至少5个或null"],
-    "group_sounds": ["多人场景拟声描述词，至少3个或null"]
+    "position_words":["≥5个或null"], "interaction_verbs":["≥5个或null"], "group_sounds":["≥3个或null"]
   },
-  "bans": ["从文本中提取禁止的写法。包含以下维度的禁令：隐喻/心理描写上限/概括性描写/冷却段落/AI腔/机器翻译感/多人场景角色掉线/多人退化为轮流。若文本中某维度无法判断则写'_材料无法判断'"]
+  "bans": ["≥5条禁止写法: 隐喻/心理上限/概括/冷却/AI腔/机器翻译感/角色掉线/轮流退化。无法判断→'_无法判断'"]
 
-提取规则（违反则输出无效）：
+→ extract | 违反则输出无效
+  1|phase: 扫描全文找五个阶段边界。foreplay=场景开始到性器官接触前
+    insertion_early=首次插入到节奏加快前 | buildup=节奏加快+快感积累,未高潮
+    climax=高潮爆发 | afterglow=高潮结束后
+    缺阶段→word_budget_ratio=0%, style="无此阶段", example_sentence=""
+  2|vocab: 逐词扫描,不编造,中文只出中文词,每数组去重
+  3|ratio: 每阶段字数/总情色字数,五数之和=100%,缺填0%
+  4|example: 直接剪切原句,不改字/标点,20-40字
+  5|bans: 扫描应禁但材料中不存在或明确回避的写法,≥5条
 
-1. 阶段识别：扫描全文，找出情色描写的五个阶段边界——
-   - foreplay_phase: 从场景开始到第一次性器官接触前的段落
-   - insertion_early: 从第一次插入到节奏开始加快前的段落
-   - buildup_phase: 节奏加快、快感积累、但尚未高潮的段落
-   - climax_phase: 高潮爆发的段落
-   - afterglow_phase: 高潮结束后的段落
-   如果文本缺少某阶段（如没有余韵），该阶段的 word_budget_ratio 填0%，style 填"材料中无此阶段"，example_sentence 填""。
-
-2. 词汇收集：逐词扫描提取，不编造。中文文本只输出中文词汇。每个词汇数组去重。
-
-3. 比例计算：按每个阶段的字数和总情色内容的字数之比计算 word_budget_ratio。五个数字之和必须等于100%。缺阶段填0%。
-
-4. example_sentence 摘取规则：从文本中直接剪切原句，不修改任何字或标点。长度控制在20-40字。
-
-5. bans 提取：扫描文本中应被禁止但在材料中恰好不存在或明确回避的写法。至少提取5条。已出现于材料但属于不良写法的也归入。
-
-材料:
-${material}
-
-只输出JSON。`
+材料:\n${material}\n只输出JSON。`
       };
     }
     function buildTrainCardPrompt(material) {
       return {
         system: BASE_SYSTEM_PROMPT,
-        user: `=== 角色卡训练 ===
+        user: `train_card | v4 | json_array_only
 
-从以下文本提取角色。每个角色输出完整 V4 角色卡。输出 JSON 数组。不输出 JSON 之外的任何内容。
+从文本提取角色，每角色→一张V4卡。输出JSON数组。禁额外文本。
 
-格式：[${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}]
+fmt: [${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}]
 
-提取规则：
-1. 身体数据：扫描文本中所有生理描写关键词（乳房/乳头/小穴/阴唇/阴蒂/腰/臀/腿/皮肤）。每找到一个写入 physical 对应字段。文本未提及的字段强制推断并标注"_推断"。physical 下所有子对象不得留空。
-2. 敏感带：扫描被触碰时的角色反应。颤抖/失声→level 9-10，喘息/僵直→7-8，呼吸变化→5-6。输出 ≥3 个。
-3. 高潮模式：扫描所有高潮场景。接近信号从高潮前2-3段提取。爆发从高潮段落提取。余韵从高潮后1-2段提取。每个子数组 ≥2 项。材料中无高潮场景时标注"_材料中未出现"。
-4. 示例对话：从文本直接摘取角色的完整对话句，保留原文措辞。≥2 组，<START> 分隔。纯描写无对话时标注"_材料为纯描写"。
-5. 硬限：仅文本中角色明确拒绝或厌恶的内容归入 hard_limits。未出现的内容不自动归入硬限。
+→ body | 扫描: 乳房/乳头/小穴/阴唇/阴蒂/腰/臀/腿/皮肤→逐词写入physical
+  缺失字段→强制推断,标"_推断"。physical下所有子对象不得留空。
+→ zone | 扫描被触碰反应: 颤抖/失声→9-10 | 喘息/僵直→7-8 | 呼吸变化→5-6
+  输出≥3个。
+→ orgasm | 扫描所有高潮场景: 接近信号←前2-3段 | 爆发←高潮段 | 余韵←后1-2段
+  每子数组≥2。无高潮→"_材料中未出现"。
+→ dialog | 直接摘取角色完整对话句,保留原文。≥2组,<START>分隔。
+  纯描写无对话→"_材料为纯描写"。
+→ hard | 仅明确拒绝/厌恶→hard_limits。未出现不归入。
 
-材料:
-${material}
-
-只输出JSON数组。`
+材料:\n${material}\n只输出JSON数组。`
       };
     }
 
     function buildCardGenPrompt(desc) {
       return {
         system: BASE_SYSTEM_PROMPT,
-        user: `=== 角色卡生成 ===
+        user: `gen_card | v4 | json_only
 
-根据描述生成完整 V4 角色卡。输出以下 JSON 结构。不输出 JSON 之外的任何内容。
+根据描述生成完整V4角色卡。禁额外文本。
 
 ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
 
-规则：
-1. 所有 "" 字段填写或标注"_未指定"。所有 [] 字段至少填入1项。
-2. physical.breasts 全部子字段必填。缺失时强制推断：熟女→D杯，少女→B-C杯，御姐→C-D杯。
-3. physical.genitals 全部子字段必填。
-4. erogenous_zones ≥3项，每项zone/level/reaction全部填写。
-5. orgasm_pattern 的 triggers/signs_approaching/during_orgasm/after_orgasm 四项，每项 ≥2。
-6. mes_example ≥2组，<START> 分隔。格式：{{user}}: 句\\n{{char}}: 句。
-7. 性器官和性行为使用直白术语。
+→ fill | ""→"_未指定" | []→≥1项
+→ breasts | 全部子字段必填。缺失强制推断: 熟女→D | 少女→B-C | 御姐→C-D
+→ genitals | 全部子字段必填
+→ zones | ≥3项,每项zone/level/reaction全填
+→ orgasm | triggers+signs+during+after各≥2
+→ mes | ≥2组,<START>分隔,{{user}}:...\\n{{char}}:...
+→ word | 性器官/性行为=直白术语
 
-描述: ${desc}
-
-只输出JSON。`
+描述: ${desc}\n只输出JSON。`
       };
     }
 
@@ -1367,43 +1249,51 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
       type: "function",
       function: {
         name: "recall_context",
-        description: `查询当前故事的上下文数据。
+        description: `查询当前故事上下文数据。
 
-=== 必须调用的场景 ===
-- 描写角色身体细节 → character_field_paths 下钻查询
-- 进入新地点 → world_queries + world_category_filter="地点"
-- 切换体位 → world_group_filter="sex_position"
-- 描写道具使用 → world_queries + world_category_filter="道具"
-- 描写高潮 → character_field_paths 查询 orgasm_pattern
-- 不确定任何事实 → 必须查询，禁止猜测
+→ triggers | 身体→character_field_paths | 地点→world_queries+cat=地点
+  体位→world_group_filter="sex_position" | 道具→world_queries+cat=道具
+  高潮→character_field_paths(orgasm_pattern) | 不确定→必查,禁猜
 
-=== 参数 ===`,
+→ params | 传任意组合: character_queries | character_field_paths | world_queries
+  world_category_filter | world_group_filter | need_outline
+
+→ character_queries | ['全部']=所有角色摘要。按名查。例: ['扶她大姐姐']
+→ character_field_paths | '角色.字段路径'。例: ['扶她大姐姐.physical.distinguishing_marks']
+→ world_queries | 关键词。例: ['宾馆','前台']。匹配触发词/类别/条目名,按priority降序
+→ world_category_filter | 类别: 地点|体位|规则|随机事件|道具|对话规范。例: '地点'
+→ world_group_filter | group名。例: 'sex_position'。返回该组所有条目+groupWeight
+→ need_outline | true→当前beat+下一beat+全局规则
+
+→ 示例1: 查询角色身体 {"character_field_paths":["扶她大姐姐.physical.distinguishing_marks"]}
+→ 示例2: 切换体位 {"world_group_filter":"sex_position"}
+→ 示例3: 进入新场景 {"world_queries":["宾馆"], "world_category_filter":"地点", "need_outline":true}`,
         parameters: {
           type: "object",
           properties: {
             character_queries: {
               type: "array", items: { type: "string" },
-              description: "角色名数组。['全部']=查所有激活角色。返回：身份/身体/罩杯/敏感带/性角色/高潮模式/硬限/说话风格。"
+              description: "角色名数组。['全部']=所有激活角色。返回完整摘要。例: ['林姐']"
             },
             character_field_paths: {
               type: "array", items: { type: "string" },
-              description: "角色字段路径。格式：'角色名.路径'。例: ['林姐.orgasm_pattern.during_orgasm']。返回字段完整内容。"
+              description: "角色名.字段路径。多级点路径。例: ['林姐.orgasm_pattern.during_orgasm', '扶她.physical.distinguishing_marks']"
             },
             world_queries: {
               type: "array", items: { type: "string" },
-              description: "世界书关键词。匹配触发词+类别+条目名。结果按 priority 降序排列。"
+              description: "关键词数组。匹配触发词/类别/条目名。按priority降序。例: ['宾馆','体位']"
             },
             world_category_filter: {
               type: "string",
-              description: "限定类别。值：地点/体位/规则/随机事件/道具/对话规范。"
+              description: "类别限定: 地点|体位|规则|随机事件|道具|对话规范。例: '地点'"
             },
             world_group_filter: {
               type: "string",
-              description: "查询 inclusion group 下所有条目及权重。如 'sex_position'。"
+              description: "inclusion group名。返回该组所有条目+权重。例: 'sex_position'"
             },
             need_outline: {
               type: "boolean",
-              description: "true=返回当前节拍+下一节拍+全局规则。不返全文。"
+              description: "true=当前beat+下一beat+全局规则"
             }
           },
           required: []
@@ -1424,7 +1314,17 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
       function getByPath(obj, path) {
         const parts = path.split('.');
         let current = obj;
-        for (const p of parts) { if (current === null || current === undefined) return undefined; current = current[p]; }
+        for (const p of parts) {
+          if (current === null || current === undefined) return undefined;
+          const arrMatch = p.match(/^(.+)\[(\d+)\]$/);
+          if (arrMatch) {
+            current = current[arrMatch[1]];
+            if (!Array.isArray(current)) return undefined;
+            current = current[parseInt(arrMatch[2])];
+          } else {
+            current = current[p];
+          }
+        }
         return current;
       }
 
@@ -1436,14 +1336,28 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
         return {
           name: cardObj.name || cardName,
           aliases: cardObj.aliases || [],
+          tags: cardObj.tags || [],
           identity: `${cardObj.age || '?'}岁 / ${cardObj.gender || '?'} / ${cardObj.occupation || '?'}`,
           relationship: cardObj.relationship_to_user || '',
+          personality_summary: pers.summary || '',
           body_summary: `${p.height_cm || '?'}cm / ${(p.breasts || {}).cup || '?'}杯 / ${p.body_type || ''}`,
-          breasts: p.breasts ? { cup: p.breasts.cup, shape: p.breasts.shape, nipple_color: p.breasts.nipple_color, sensitivity: p.breasts.sensitivity } : undefined,
-          genitals: p.genitals ? { pubic_hair: p.genitals.pubic_hair, vulva_type: p.genitals.vulva_type, tightness: p.genitals.tightness, taste: p.genitals.taste, color: p.genitals.color } : undefined,
+          hair: p.hair ? { color: p.hair.color, length: p.hair.length, style: p.hair.style, texture: p.hair.texture } : undefined,
+          eyes: p.eyes ? { color: p.eyes.color, shape: p.eyes.shape } : undefined,
+          face: p.face ? { shape: p.face.shape, features: p.face.features, makeup: p.face.makeup } : undefined,
+          breasts: p.breasts ? { size: p.breasts.size, cup: p.breasts.cup, shape: p.breasts.shape, nipple_color: p.breasts.nipple_color, sensitivity: p.breasts.sensitivity } : undefined,
+          waist: p.waist?.type || undefined,
+          hips: p.hips ? { type: p.hips.type, description: p.hips.description } : undefined,
+          buttocks: p.buttocks ? { size: p.buttocks.size, shape: p.buttocks.shape, firmness: p.buttocks.firmness } : undefined,
+          legs: p.legs ? { length: p.legs.length, shape: p.legs.shape, description: p.legs.description } : undefined,
+          genitals: p.genitals ? { pubic_hair: p.genitals.pubic_hair, vulva_type: p.genitals.vulva_type, labia: p.genitals.labia, clitoris: p.genitals.clitoris, tightness: p.genitals.tightness, taste: p.genitals.taste, color: p.genitals.color } : undefined,
+          body_hair: p.body_hair || undefined,
+          scent: p.scent || undefined,
+          distinguishing_marks: p.distinguishing_marks || [],
           erogenous_zones: (cardObj.erogenous_zones || []).map(z => ({ zone: z.zone, level: z.level, reaction: z.reaction })),
           personality_traits: (pers.traits || []).map(t => `${t.trait}(${t.context || ''})`),
-          speech: spk.style || pers.speech_tone || '',
+          speech: spk.style || spk.speech_tone || pers.speech_tone || '',
+          first_mes: cardObj.first_mes || '',
+          mes_example: cardObj.mes_example || '',
           sexual_role: sp.role || '',
           libido: sp.libido || '',
           pacing: sp.pacing_preference || '',
@@ -1473,15 +1387,16 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
         result.characters = [];
         const queryAll = params.character_queries?.length === 1 && params.character_queries[0] === '全部';
         const matchedCards = new Set();
+        const hasFieldPaths = params.character_field_paths?.length;
         if (params.character_queries?.length && !queryAll) {
           for (const card of state.activeCards) {
             const obj = parseCard(card);
             const nm = obj?.name || card.name || '';
             const aliases = obj?.aliases || [];
-            if (params.character_queries.some(q => { const ql = q.toLowerCase(); return nm.toLowerCase().includes(ql) || aliases.some(a => a.toLowerCase().includes(ql)); })) matchedCards.add(card);
+            if (params.character_queries.some(q => { const ql = q.toLowerCase(); return nm === ql || aliases.some(a => a.toLowerCase() === ql); })) matchedCards.add(card);
           }
         }
-        if (queryAll || (!params.character_queries?.length && !params.character_field_paths?.length)) state.activeCards.forEach(c => matchedCards.add(c));
+        if (queryAll || (!params.character_queries?.length && !hasFieldPaths)) state.activeCards.forEach(c => matchedCards.add(c));
         if (params.character_field_paths?.length) {
           for (const card of state.activeCards) {
             const obj = parseCard(card);
@@ -1523,7 +1438,7 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
           for (const entry of (wb.entries || [])) {
             if (entry.group === params.world_group_filter) {
               if (!result.world_groups[entry.group]) result.world_groups[entry.group] = [];
-              result.world_groups[entry.group].push({ world: wb.name, id: entry.id, name: entry.name, category: entry.category, groupWeight: entry.groupWeight || 50, triggers: entry.triggers || [entry.key], content_snippet: (entry.content || '').slice(0, 150) });
+              result.world_groups[entry.group].push({ world: wb.name, id: entry.id, name: entry.name, category: entry.category, groupWeight: entry.groupWeight || 50, triggers: entry.triggers || [entry.key], content: entry.content || '' });
             }
           }
         }
@@ -1545,15 +1460,32 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
               const cf = params.world_category_filter.toLowerCase();
               if (!(entry.category || '').toLowerCase().includes(cf)) continue;
             }
+            if (entry.characterFilter?.length) {
+              const activeNames = (state.activeCards || []).map(c => { const o = parseCard(c); return (o?.name || c.name || '').toLowerCase(); });
+              if (!entry.characterFilter.some(f => activeNames.some(a => a.includes(f.toLowerCase())))) continue;
+            }
+            let matchedBy = '';
             if (params.world_queries?.length) {
               const triggers = (entry.triggers || [entry.key]).map(t => t.toLowerCase());
-              const targets = [...triggers, (entry.category || '').toLowerCase(), (entry.name || '').toLowerCase()];
-              if (!params.world_queries.some(q => { const ql = q.toLowerCase(); return targets.some(t => t.includes(ql)); })) continue;
+              const secondary = (entry.secondaryKeys || []).map(t => t.toLowerCase());
+              const targets = [...triggers, ...secondary, (entry.category || '').toLowerCase(), (entry.name || '').toLowerCase()];
+              const hit = params.world_queries.find(q => { const ql = q.toLowerCase(); return targets.some(t => t.includes(ql)); });
+              if (!hit) continue;
+              matchedBy = hit;
             }
-            if (!seen.has(entry.id)) { result.world_entries.push(buildWorldEntryResult(entry, wb.name)); seen.add(entry.id); }
+            if (!seen.has(entry.id)) {
+              const er = buildWorldEntryResult(entry, wb.name);
+              if (matchedBy) er.matched_trigger = matchedBy;
+              result.world_entries.push(er);
+              seen.add(entry.id);
+            }
           }
         }
         result.world_entries.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+        if (result.world_entries.length > 12) {
+          result.world_entries_truncated = `共${result.world_entries.length}条，仅返回高优先级前12条。请缩小查询范围。`;
+          result.world_entries = result.world_entries.slice(0, 12);
+        }
         const groupsFound = {};
         for (const e of result.world_entries) { if (e.group) { if (!groupsFound[e.group]) groupsFound[e.group] = []; groupsFound[e.group].push(e.name); } }
         if (Object.keys(groupsFound).length) {
@@ -1569,18 +1501,25 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
       if (params.need_outline) {
         if (typeof state.outline === 'object' && state.outline?.beats) {
           const ci = state.currentBeatIndex || 0;
-          result.outline = { title: state.outline.title || '', current_beat: state.outline.beats[ci] || null, next_beat: state.outline.beats[ci + 1] || null, total_beats: state.outline.beats.length, current_beat_index: ci, global_rules: state.outline.global_rules || [] };
+          const current = state.outline.beats[ci];
+          const slimBeat = current ? { name: current.name, erotic_phase: current.erotic_phase, tension_level: current.tension_level, sexual_milestone: current.sexual_milestone, key_actions: current.key_actions, location_ref: current.location_ref, transition_to_next: current.transition_to_next } : null;
+          const next = state.outline.beats[ci + 1];
+          const slimNext = next ? { name: next.name, erotic_phase: next.erotic_phase } : null;
+          result.outline = { title: state.outline.title || '', current_beat: slimBeat, next_beat: slimNext, total_beats: state.outline.beats.length, current_beat_index: ci, global_rules: state.outline.global_rules || [] };
         } else if (typeof state.outline === 'string' && state.outline.trim()) {
-          result.outline = state.outline;
+          result.outline = state.outline.slice(0, 1000);
         } else { result.outline = '(暂无大纲)'; }
       }
 
-      result.active_summary = {
-        characters: (state.activeCards || []).map(c => { const obj = parseCard(c); return `${obj?.name || c.name}(${obj?.physical?.breasts?.cup || '?'}杯/${obj?.sexual_preferences?.role || '?'})`; }),
-        worlds: (state.activeWorldBooks || []).map(w => `${w.name}(${(w.entries || []).length}条)`),
-        has_outline: !!state.outline,
-        current_beat: (typeof state.outline === 'object' && state.outline?.beats) ? `第${(state.currentBeatIndex || 0) + 1}/${state.outline.beats.length}节` : undefined
-      };
+      // active_summary: 仅当显式请求了角色/世界书/大纲查询时才附加
+      if (result.characters || result.world_entries || result.world_groups || result.outline) {
+        result.active_summary = {
+          characters: (state.activeCards || []).map(c => { const obj = parseCard(c); return `${obj?.name || c.name}(${obj?.physical?.breasts?.cup || '?'}杯/${obj?.sexual_preferences?.role || '?'})`; }),
+          worlds: (state.activeWorldBooks || []).map(w => `${w.name}(${(w.entries || []).length}条)`),
+          has_outline: !!state.outline,
+          current_beat: (typeof state.outline === 'object' && state.outline?.beats) ? `第${(state.currentBeatIndex || 0) + 1}/${state.outline.beats.length}节` : undefined
+        };
+      }
 
       return JSON.stringify(result, null, 2);
     }
@@ -1629,6 +1568,9 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
           cc += `身体: ${obj.physical?.height_cm || ''}cm/${obj.physical?.breasts?.cup || ''}杯/${obj.physical?.body_type || ''}\n`;
           cc += `乳房: ${obj.physical?.breasts?.shape || ''}, 乳头${obj.physical?.breasts?.nipple_color || ''}, ${obj.physical?.breasts?.sensitivity || ''}\n`;
           cc += `生殖器: ${obj.physical?.genitals?.pubic_hair || ''}, ${obj.physical?.genitals?.vulva_type || ''}, ${obj.physical?.genitals?.tightness || ''}\n`;
+          if ((obj.physical?.distinguishing_marks || []).length) cc += `身体特征标记: ${obj.physical.distinguishing_marks.join('; ')}\n`;
+          if (obj.physical?.hair?.color) cc += `发型/发色: ${obj.physical.hair.style || ''} / ${obj.physical.hair.color || ''}${obj.physical.hair.length ? ' / '+obj.physical.hair.length : ''}\n`;
+          if (obj.physical?.scent?.natural) cc += `体味: ${obj.physical.scent.natural}\n`;
           cc += `敏感带: ${(obj.erogenous_zones || []).map(z => `${z.zone}(${z.level})`).join('/')}\n`;
           cc += `性格: ${obj.personality?.summary || (obj.personality?.traits || []).map(t => t.trait).join('/')}\n`;
           cc += `性角色: ${obj.sexual_preferences?.role || ''}\n`;
@@ -1653,22 +1595,33 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
       state.activeWorldBooks.forEach(wb => {
         (wb.entries || []).forEach(e => allEntries.push({ ...e, _worldName: wb.name }));
       });
-      allEntries.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+      // 过滤：always 条目 + priority>100 的高优条目 + 当前活跃 group 条目
+      const alwaysEntries = allEntries.filter(e => e.always);
+      const highPriority = allEntries.filter(e => !e.always && (e.priority || 200) >= 150);
       const groups = {}, standalone = [];
       for (const e of allEntries) {
         if (e.group) { if (!groups[e.group]) groups[e.group] = []; groups[e.group].push(e); }
-        else standalone.push(e);
+        else if (!e.always && (e.priority || 200) < 150) standalone.push(e);
       }
+      const relevant = [...alwaysEntries, ...highPriority, ...standalone.slice(0, 8)];
       let wb = '';
-      wb += '\n【世界书·全局规则】\n';
-      standalone.filter(e => e.priority <= 150).forEach(e => wb += `[${e.category || '规则'}] ${e.name || e.key}: ${e.content}\n`);
-      wb += '\n【世界书·场景数据】\n';
-      standalone.filter(e => e.priority > 150 && e.position !== 'system').forEach(e => wb += `[${e.category || ''}] ${e.name || e.key}: ${e.content}\n`);
-      wb += '\n【世界书·场景指令】\n';
-      standalone.filter(e => e.position === 'system').forEach(e => wb += `[${e.category || '随机事件'}] ${e.content}\n`);
+      if (alwaysEntries.length) {
+        wb += '\n【世界书·全局规则】\n';
+        alwaysEntries.forEach(e => wb += `[${e.category || '规则'}] ${e.name || e.key}: ${e.content}\n`);
+      }
+      if (highPriority.length) {
+        wb += '\n【世界书·场景数据】\n';
+        highPriority.filter(e => e.position !== 'system').forEach(e => wb += `[${e.category || ''}] ${e.name || e.key}: ${e.content}\n`);
+      }
+      const sysInstr = highPriority.filter(e => e.position === 'system').concat(alwaysEntries.filter(e => e.position === 'system'));
+      if (sysInstr.length) {
+        wb += '\n【世界书·场景指令】\n';
+        sysInstr.forEach(e => wb += `[${e.category || '随机事件'}] ${e.content}\n`);
+      }
       for (const [gName, entries] of Object.entries(groups)) {
-        wb += `\n【体位组: ${gName}（以下条目每轮仅激活一个）】\n`;
-        entries.forEach(e => wb += `[${e.category || '体位'}] ${e.name || e.key} (权重${e.groupWeight || 50}): ${e.content}\n`);
+        // 每组只取 groupWeight 最高的条目
+        const top = entries.sort((a, b) => (b.groupWeight || 50) - (a.groupWeight || 50))[0];
+        wb += `\n【体位: ${gName}】${top.name || top.key}: ${top.content}\n`;
       }
       return wb;
     }
@@ -1731,37 +1684,37 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
     }
 
     function buildOutlineUserMessage() {
-      let msg = '请根据以下信息生成大纲：\n\n';
+      let msg = 'outline_gen | 请根据以下信息生成大纲\n\n';
       if (state.activeCards?.length) {
-        msg += '=== 激活角色卡 ===\n';
+        msg += '→ chars |\n';
         for (const card of state.activeCards) {
           const obj = typeof card.content === 'string' ? tryParseJSON(card.content) : card.content;
           if (!obj) continue;
-          msg += `名称: ${obj.name || card.name}\n`;
-          msg += `身份: ${obj.age || '?'}岁/${obj.gender || '?'}/${obj.occupation || '?'}\n`;
-          msg += `性格摘要: ${obj.personality?.summary || (obj.personality?.traits || []).map(t => t.trait).join(',')}\n`;
-          msg += `性角色: ${obj.sexual_preferences?.role || '?'}\n`;
-          msg += `高潮模式: 平均${obj.sexual_preferences?.orgasm_pattern?.average_per_session || 0}次\n`;
-          msg += `硬限: ${(obj.sexual_preferences?.hard_limits || []).join(',') || '无'}\n\n`;
+          msg += `  ${obj.name || card.name}: ${obj.age||'?'}岁/${obj.gender||'?'}/${obj.occupation||'?'}`;
+          msg += ` | 性格=${obj.personality?.summary || (obj.personality?.traits||[]).map(t=>t.trait).join(',')}`;
+          msg += ` | role=${obj.sexual_preferences?.role||'?'} | 高潮=${obj.sexual_preferences?.orgasm_pattern?.average_per_session||0}次`;
+          msg += ` | 硬限=${(obj.sexual_preferences?.hard_limits||[]).join(',')||'无'}\n`;
         }
+        msg += '\n';
       }
       if (state.activeWorldBooks?.length) {
-        msg += '\n=== 激活世界书（可用地点/规则） ===\n';
+        msg += '→ world |\n';
         for (const wb of state.activeWorldBooks) {
           for (const entry of (wb.entries || [])) {
-            msg += `[${entry.category || '未分类'}] ${entry.name || entry.key} — 触发词: ${(entry.triggers || [entry.key]).join(',')}\n`;
+            msg += `  [${entry.category||'未分类'}] ${entry.name||entry.key} trigger=${(entry.triggers||[entry.key]).join(',')}\n`;
           }
         }
+        msg += '\n';
       }
       const p = state.preferences;
-      msg += '\n=== 偏好设置【违规则大纲无效】 ===\n';
-      if (p.scenes) msg += `场景: ${p.scenes}。核心场景必须含此。\n`;
-      if (p.play) msg += `玩法: ${p.play}。≥1 beat必须体现。\n`;
-      if (p.position) msg += `体位: ${p.position}。性行为beat必须引用。\n`;
-      if (p.length) msg += `总字数≥${p.length}。beats=ceil(总字数/3000)。\n`;
-      if (p.orgasm !== '无要求') msg += `高潮: ${p.orgasm}。erotic_phase必须安排对应里程碑。\n`;
-      if (p.pace) msg += `节奏: ${p.pace}。逐条遵循系统消息"节奏偏好"→${p.pace}模式参数。禁逾越。\n`;
-      if (p.outlineLength) msg += `大纲时长: ${p.outlineLength}。beats/高潮/体位/字数必须落在系统消息"大纲时长"→${p.outlineLength}区间。出界=大纲无效。\n`;
+      msg += '→ pref | 违反→大纲无效\n';
+      if (p.scenes) msg += `  scene=${p.scenes}\n`;
+      if (p.play) msg += `  play=${p.play}(≥1beat体现)\n`;
+      if (p.position) msg += `  pos=${p.position}\n`;
+      if (p.length) msg += `  len≥${p.length} beats=ceil(len/3000)\n`;
+      if (p.orgasm!=='无要求') msg += `  orgasm=${p.orgasm}\n`;
+      if (p.pace) msg += `  pace=${p.pace}\n`;
+      if (p.outlineLength) msg += `  outline=${p.outlineLength}\n`;
       msg += '\n禁输出JSON之外内容。';
       return msg;
     }
@@ -2096,13 +2049,16 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
         { role: 'system', content: optionsSys },
         { role: 'user', content: userMsg }
       ];
-      try {
-        const resp = await callAPI(messages, { maxTokens: state.apiMaxTokens, temperature: 0.7 });
-        return parseOptions(resp);
-      } catch (e) {
-        debugLog('选项生成失败: ' + e.message);
-        return ['继续', '换个姿势', '温柔一些'];
+      for (let retry = 0; retry < 3; retry++) {
+        try {
+          if (retry > 0) debugLog(`[选项] 输出无效，重试第${retry}次`);
+          const resp = await callAPI(messages, { maxTokens: state.apiMaxTokens, temperature: 0.7 });
+          const opts = parseOptions(resp);
+          if (opts.length >= 2) return opts;
+        } catch (e) { debugLog('选项生成失败: ' + e.message); }
       }
+      debugLog('[选项] 3次重试均失败，使用兜底');
+      return ['继续', '换个姿势', '温柔一些'];
     }
 
     function parseOptions(text) {
@@ -2129,11 +2085,17 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
       startFakeProgress(5);
       try {
         const outlineSys = buildOutlineSystemMessage();
-        const cardsInfo = activeCards.map(c => c.content || JSON.stringify(c)).join('\n---\n');
-        const prefsText = buildPreferenceText();
         const outlineUserMsg = buildOutlineUserMessage();
         const outlineMessages = [{ role: 'system', content: outlineSys }, { role: 'user', content: outlineUserMsg }];
-        const outline = await callAPI(outlineMessages, { maxTokens: state.apiMaxTokens, temperature: 0.5 });
+        let outline = '';
+        for (let retry = 0; retry < 3; retry++) {
+          if (retry > 0) { debugLog(`[大纲] 输出无效，重试第${retry}次`); updateLoading('重试生成大纲...', 5 + retry * 10); }
+          outline = await callAPI(outlineMessages, { maxTokens: state.apiMaxTokens, temperature: 0.5 });
+          const testMatch = outline.match(/\{[\s\S]*\}/);
+          if (testMatch) {
+            try { JSON.parse(testMatch[0]); break; } catch(e) { debugLog(`[大纲] 解析失败: ${e.message}`); }
+          }
+        }
         stopFakeProgress();
         updateLoading('正在生成大纲...', 100);
         const jsonMatch = outline.match(/\{[\s\S]*\}/);
@@ -2158,17 +2120,18 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
         updateLoading('生成初始场景...', 30);
         const narrativeSys = buildNarrativeSystemMessage();
         const storyMessages = [
-          { role: 'system', content: narrativeSys },
-          { role: 'system', content: '当前大纲（不输出）:\n' + outline }
+          { role: 'system', content: narrativeSys }
         ];
         const cardBlock = buildCardInjectionBlock(true);
         if (cardBlock) storyMessages.push({ role: 'system', content: cardBlock });
+        // 动态上下文归入 user
+        let userCtx = '';
         const wbBlock = buildWorldInjectionBlock();
-        if (wbBlock) storyMessages.push({ role: 'system', content: wbBlock });
-        if (state.summaryBlocks.length) {
-          storyMessages.push({ role: 'system', content: '早期剧情摘要:\n' + state.summaryBlocks.join('\n---\n') });
-        }
-        storyMessages.push({ role: 'user', content: '请根据角色卡、大纲和偏好，写出故事的开头。直接叙述。' });
+        if (wbBlock) userCtx += wbBlock + '\n';
+        if (outline) userCtx += '当前大纲（不输出）:\n' + (typeof outline === 'object' ? JSON.stringify(outline) : outline) + '\n';
+        if (state.summaryBlocks.length) userCtx += '早期剧情摘要:\n' + state.summaryBlocks.join('\n---\n') + '\n';
+        userCtx += '请根据角色卡、大纲和偏好，写出故事的开头。直接叙述。';
+        storyMessages.push({ role: 'user', content: userCtx });
         hideLoading();
         const storyEl = document.getElementById('storyMessages');
         const streamMsgEl = document.createElement('div');
@@ -2211,17 +2174,17 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
 
     function buildPreferenceText() {
       const p = state.preferences;
-      let t = '';
-      if (p.style) t += `故事方式: ${p.style}。大纲匹配此节奏。\n`;
-      if (p.length) t += `长度≥${p.length}字。beats=ceil(总字数/3000)。\n`;
-      if (p.scenes) t += `场景: ${p.scenes}。核心场景含此，作location_ref。\n`;
-      if (p.play) t += `玩法: ${p.play}。≥1 beat的key_actions体现。\n`;
-      if (p.position) t += `体位: ${p.position}。性行为beat的required_world_entries引用。\n`;
-      if (p.limits) t += `限制: ${p.limits}。所有beat禁出现。写入global_rules。\n`;
-      if (p.orgasm !== '无要求') t += `高潮: ${p.orgasm}。erotic_phase安排里程碑。\n`;
-      if (p.cum) t += `射精部位: ${p.cum}。含射精beat标为sexual_milestone。\n`;
-      if (p.pace) t += `节奏: ${p.pace}。按"节奏偏好"→${p.pace}模式参数执行。违反→大纲无效。\n`;
-      if (p.outlineLength) t += `大纲时长: ${p.outlineLength}。落在"大纲时长"→${p.outlineLength}区间(beats/高潮/体位/字数)。出界→大纲无效。\n`;
+      let t = '→ pref | 违反→大纲无效\n';
+      if (p.style) t += `  style=${p.style}\n`;
+      if (p.length) t += `  len≥${p.length} beats=ceil(len/3000)\n`;
+      if (p.scenes) t += `  scene=${p.scenes}(→location_ref)\n`;
+      if (p.play) t += `  play=${p.play}(≥1beat→key_actions)\n`;
+      if (p.position) t += `  pos=${p.position}(→required_world_entries)\n`;
+      if (p.limits) t += `  limits=${p.limits}(→global_rules,全beat禁)\n`;
+      if (p.orgasm !== '无要求') t += `  orgasm=${p.orgasm}(→milestone安排)\n`;
+      if (p.cum) t += `  cum=${p.cum}(→sexual_milestone标记)\n`;
+      if (p.pace) t += `  pace=${p.pace}\n`;
+      if (p.outlineLength) t += `  outline=${p.outlineLength}\n`;
       return t;
     }
 
@@ -2251,12 +2214,13 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
         const fullMessages = [{ role: 'system', content: narrativeSys }];
         const cardBlock = buildCardInjectionBlock(true);
         if (cardBlock) fullMessages.push({ role: 'system', content: cardBlock });
-        if (state.outline) fullMessages.push({ role: 'system', content: buildOutlineContext() });
+        // 动态上下文归入 user
+        let userCtx = '';
         const wbBlock = buildWorldInjectionBlock();
-        if (wbBlock) fullMessages.push({ role: 'system', content: wbBlock });
-        if (state.summaryBlocks.length) {
-          fullMessages.push({ role: 'system', content: '早期剧情摘要:\n' + state.summaryBlocks.join('\n---\n') });
-        }
+        if (wbBlock) userCtx += wbBlock + '\n';
+        if (state.outline) userCtx += buildOutlineContext() + '\n';
+        if (state.summaryBlocks.length) userCtx += '早期剧情摘要:\n' + state.summaryBlocks.join('\n---\n') + '\n';
+        if (userCtx) fullMessages.push({ role: 'user', content: userCtx });
         fullMessages.push(...chatMessages);
         streamMsgEl = document.createElement('div');
         streamMsgEl.className = 'story-msg';
@@ -2328,12 +2292,13 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
         const fullMessages = [{ role: 'system', content: narrativeSys }];
         const cardBlock = buildCardInjectionBlock(true);
         if (cardBlock) fullMessages.push({ role: 'system', content: cardBlock });
-        if (state.outline) fullMessages.push({ role: 'system', content: buildOutlineContext() });
+        // 动态上下文归入 user
+        let userCtx = '';
         const wbBlock = buildWorldInjectionBlock();
-        if (wbBlock) fullMessages.push({ role: 'system', content: wbBlock });
-        if (state.summaryBlocks.length) {
-          fullMessages.push({ role: 'system', content: '早期摘要:\n' + state.summaryBlocks.join('\n---\n') });
-        }
+        if (wbBlock) userCtx += wbBlock + '\n';
+        if (state.outline) userCtx += buildOutlineContext() + '\n';
+        if (state.summaryBlocks.length) userCtx += '早期摘要:\n' + state.summaryBlocks.join('\n---\n') + '\n';
+        if (userCtx) fullMessages.push({ role: 'user', content: userCtx });
         fullMessages.push(...chat);
         streamMsgEl = document.createElement('div');
         streamMsgEl.className = 'story-msg';
@@ -2858,18 +2823,22 @@ document.getElementById('customInput').addEventListener('keydown', (e) => {  // 
         showLoading(); updateLoading('训练叙事模块...', 10);
         try {
           const p = buildTrainNarrativePrompt(material);
-          const resp = await callAPI([{role:'system',content:p.system},{role:'user',content:p.user}], {maxTokens:4096});
+          let resp = ''; let parsed = null;
+          for (let retry = 0; retry < 3; retry++) {
+            if (retry > 0) { debugLog(`[训练叙事] 输出无效，重试第${retry}次`); updateLoading(`重试训练...${retry+1}/3`, 20 + retry * 20); }
+            resp = await callAPI([{role:'system',content:p.system},{role:'user',content:p.user}], {maxTokens:4096});
+            const jsonMatch = resp.match(/\{[\s\S]*\}/);
+            if (jsonMatch) { try { parsed = JSON.parse(jsonMatch[0]); break; } catch(e) { debugLog(`[训练叙事] 解析失败: ${e.message}`); } }
+          }
           hideLoading();
-          const jsonMatch = resp.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
+          if (parsed) {
             const name = '训练_' + Date.now().toString(36);
             state.narrativePresets[name] = parsed;
             state.narrativeModule = parsed;
             document.getElementById('narrativeModuleEditor').value = JSON.stringify(parsed, null, 2);
             renderNarrativePresets();
             saveState(); toast('训练完成，档位: '+name);
-          } else { toast('未能解析JSON'); }
+          } else { toast('训练失败：输出无效，已重试3次'); }
         } catch(e) { hideLoading(); toast('训练失败: '+e.message); }
       });
 
@@ -2880,18 +2849,22 @@ document.getElementById('customInput').addEventListener('keydown', (e) => {  // 
       });
       document.getElementById('genCardBtn').addEventListener('click', async () => {
         const desc = document.getElementById('genCardDesc').value.trim(); if (!desc) return;
-        showLoading();
+        showLoading(); updateLoading('生成角色卡...', 10);
         try {
           const p = buildCardGenPrompt(desc);
-          const resp = await callAPI([{role:'system',content:p.system},{role:'user',content:p.user}], {maxTokens:4096});
+          let resp = ''; let cardObj = null;
+          for (let retry = 0; retry < 3; retry++) {
+            if (retry > 0) { debugLog(`[生成角色卡] 输出无效，重试第${retry}次`); updateLoading(`重试生成...${retry+1}/3`, 20 + retry * 20); }
+            resp = await callAPI([{role:'system',content:p.system},{role:'user',content:p.user}], {maxTokens:4096});
+            const jsonMatch = resp.match(/\{[\s\S]*\}/);
+            if (jsonMatch) { try { cardObj = JSON.parse(jsonMatch[0]); break; } catch(e) { debugLog(`[生成角色卡] 解析失败: ${e.message}`); } }
+          }
           hideLoading();
-          const jsonMatch = resp.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            const cardObj = JSON.parse(jsonMatch[0]);
+          if (cardObj) {
             cardObj.id = Date.now().toString(36);
             state.cards.push({ id: cardObj.id, name: cardObj.name || '未命名', content: JSON.stringify(cardObj) });
             saveState(); renderCardList(); toast('AI生成成功');
-          } else { toast('解析失败'); }
+          } else { toast('生成失败：输出无效，已重试3次'); }
         } catch(e) { hideLoading(); toast('生成失败: '+e.message); }
       });
       document.getElementById('cardListContainer').addEventListener('click', e => {
@@ -2910,18 +2883,22 @@ document.getElementById('customInput').addEventListener('keydown', (e) => {  // 
 
       document.getElementById('trainCardBtn').addEventListener('click', async () => {
         const material = document.getElementById('trainMaterialCard').value.trim(); if (!material) return;
-        showLoading();
+        showLoading(); updateLoading('训练角色卡...', 10);
         try {
           const p = buildTrainCardPrompt(material);
-          const resp = await callAPI([{role:'system',content:p.system},{role:'user',content:p.user}], {maxTokens:4096});
+          let resp = ''; let cards = null;
+          for (let retry = 0; retry < 3; retry++) {
+            if (retry > 0) { debugLog(`[训练角色卡] 输出无效，重试第${retry}次`); updateLoading(`重试训练...${retry+1}/3`, 20 + retry * 20); }
+            resp = await callAPI([{role:'system',content:p.system},{role:'user',content:p.user}], {maxTokens:4096});
+            const jsonMatch = resp.match(/\[[\s\S]*\]/);
+            if (jsonMatch) { try { cards = JSON.parse(jsonMatch[0]); break; } catch(e) { debugLog(`[训练角色卡] 解析失败: ${e.message}`); } }
+          }
           hideLoading();
-          const jsonMatch = resp.match(/\[[\s\S]*\]/);
-          if (jsonMatch) {
-            const cards = JSON.parse(jsonMatch[0]);
+          if (cards) {
             cards.forEach(c => { c.id = Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
- state.cards.push({ id: c.id, name: c.name||'未命名', content: JSON.stringify(c) }); });
+  state.cards.push({ id: c.id, name: c.name||'未命名', content: JSON.stringify(c) }); });
             saveState(); renderCardList(); toast(`已生成${cards.length}张角色卡`);
-          } else { toast('解析失败'); }
+          } else { toast('训练失败：输出无效，已重试3次'); }
         } catch(e) { hideLoading(); toast('训练失败: '+e.message); }
       });
 
@@ -2963,7 +2940,13 @@ document.getElementById('customInput').addEventListener('keydown', (e) => {  // 
         try {
           const outlineSys = buildOutlineSystemMessage();
           const outlineUserMsg = buildOutlineUserMessage();
-          const outline = await callAPI([{role:'system',content:outlineSys},{role:'user',content:outlineUserMsg}],{maxTokens:state.apiMaxTokens});
+          let outline = '';
+          for (let retry = 0; retry < 3; retry++) {
+            if (retry > 0) { debugLog(`[大纲重生成] 输出无效，重试第${retry}次`); updateLoading('重试生成...', 5 + retry * 10); }
+            outline = await callAPI([{role:'system',content:outlineSys},{role:'user',content:outlineUserMsg}],{maxTokens:state.apiMaxTokens});
+            const testMatch = outline.match(/\{[\s\S]*\}/);
+            if (testMatch) { try { JSON.parse(testMatch[0]); break; } catch(e) { debugLog(`[大纲重生成] 解析失败: ${e.message}`); } }
+          }
           stopFakeProgress();
           updateLoading('正在生成大纲...', 100);
           const jsonMatch = outline.match(/\{[\s\S]*\}/);
@@ -3010,30 +2993,23 @@ document.getElementById('customInput').addEventListener('keydown', (e) => {  // 
         };
         return {
           system: BASE_SYSTEM_PROMPT,
-          user: `=== 格式转换命令 ===
+          user: `convert | v4 | json_only
 
-将输入转换为 V4 标准格式。
+输入→V4标准格式。禁额外文本。
 
-输入格式: ${formatHints[format] || formatHints.auto}
-输出目标: ${targetHints[target] || targetHints.auto}
+in: ${formatHints[format] || formatHints.auto}
+out: ${targetHints[target] || targetHints.auto}
 
-目标：V4 角色卡
-${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
+card_tpl: ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
+world_tpl: ${JSON.stringify(WORLD_ENTRY_TEMPLATE, null, 2)}
 
-目标：V4 世界书条目
-${JSON.stringify(WORLD_ENTRY_TEMPLATE, null, 2)}
+→ out_json | {"card":{...}|null, "worldbook":{...}|null}
+→ card_map | name→name | desc→personality.summary | scenario→scenario | first_mes→first_mes
+  mes_example→{{user}}:...\\n{{char}}:... | 身体外观→physical(不明确强制推断)
+→ world_map | NovelAI keys→triggers | insertion_order→priority(1000-order) | WUBBY key→name
+→ rule | card和worldbook至少一个≠null | 简体中文 | 性器官直白术语
 
-输出JSON：{ "card": {...}或null, "worldbook": {"id":"wb_xxx","name":"","description":"","entries":[...]}或null }
-
-规则：
-1. 角色卡：name→name, description→personality.summary, scenario→scenario, first_mes→first_mes。mes_example统一为 {{user}}: ...\\n{{char}}: ...。身体外观→physical，不明确的强制推断。
-2. 世界书：NovelAI keys→triggers, insertion_order→priority(priority=1000-order)。WUBBY key→name。
-3. card和worldbook至少一个不为null。所有内容简体中文，性器官直白术语。
-
-输入:
-${rawInput}
-
-只输出JSON。`
+输入:\n${rawInput}\n只输出JSON。`
         };
       }
 
@@ -3048,11 +3024,16 @@ ${rawInput}
         showLoading(); updateLoading('格式转换中...', 50);
         try {
           const p = buildConvertPrompt(rawInput, format, target);
-          const resp = await callAPI([{role:'system',content:p.system},{role:'user',content:p.user}], {maxTokens:16384,temperature:0.5,trackUsage:false,enableTools:false});
+          let resp = ''; let converted = null;
+          for (let retry = 0; retry < 3; retry++) {
+            if (retry > 0) { debugLog(`[格式转换] 输出无效，重试第${retry}次`); updateLoading(`重试转换...${retry+1}/3`, 30 + retry * 20); }
+            resp = await callAPI([{role:'system',content:p.system},{role:'user',content:p.user}], {maxTokens:16384,temperature:0.5,trackUsage:false,enableTools:false});
+            const jsonMatch = resp.match(/\{[\s\S]*\}/);
+            if (jsonMatch) { try { converted = JSON.parse(jsonMatch[0]); break; } catch(e) { debugLog(`[格式转换] 解析失败: ${e.message}`); } }
+          }
           hideLoading();
-          const jsonMatch = resp.match(/\{[\s\S]*\}/);
-          if (!jsonMatch) { toast('未解析到JSON'); statusEl.textContent = ''; return; }
-          const converted = JSON.parse(jsonMatch[0]);
+          if (!converted) { toast('转换失败: 输出无效，已重试3次'); statusEl.textContent = '失败'; return; }
+          convertPendingData = converted;
           convertPendingData = converted;
           resultArea.classList.remove('hidden');
           if (converted.card) {
