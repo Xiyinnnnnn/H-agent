@@ -79,6 +79,9 @@
     .card-select-item .card-name { flex:1; font-size:15px; }
     .card-select-item .card-check { width:26px; height:26px; border-radius:6px; border:2px solid #444; display:flex; align-items:center; justify-content:center; font-size:14px; color:#7a5cf0; flex-shrink:0; }
     .card-select-item.selected .card-check { border-color:#7a5cf0; background:#7a5cf0; color:#fff; }
+    .card-select-item.user-card { border:2px solid #c9a030; }
+    .card-select-item.user-card.selected { background:#2a1f0a; border-color:#e8c84a; }
+    .card-user-badge { display:inline-flex; align-items:center; font-size:10px; color:#c9a030; background:rgba(201,160,48,0.15); padding:2px 6px; border-radius:4px; margin-right:6px; flex-shrink:0; line-height:1.4; }
     .progress-container { margin-top:10px; height:6px; background:#333; border-radius:3px; overflow:hidden; }
     .progress-bar { height:100%; background:#7a5cf0; width:0%; transition:width 0.3s ease; }
     .toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:#2a2a2a; color:#f0f0f0; padding:10px 24px; border-radius:30px; font-size:14px; z-index:2000; box-shadow:0 4px 20px rgba(0,0,0,0.6); border:1px solid #3a3a3a; animation:toastIn 0.25s ease; }
@@ -490,6 +493,7 @@
   global_rules 每条=绝对禁令/硬性要求，违反→输出无效。
 
 【用词】性器官用直白术语。禁隐喻。禁代称。禁文艺化。
+禁医学术语：耻骨/括约肌/会阴/前列腺/子宫颈/海绵体/尿道/肛管/耻骨联合。改用感官描述替代。
 
 【感官】每段落必须含触觉+听觉。禁缺任一。在此基础上叠加其他感官。
 
@@ -500,6 +504,9 @@
 【句长】tension 1-3: 长句 | 4-6: 中句, 动作/反应交替 | 7-8: 短句, 动作紧跟生理反应 | 9-10: 极短句, 一句一画面, 禁心理活动, 禁完整对话。
 
 【输出】禁元评论/解释/系统消息/角色名标签/分段标记。
+禁破折号插入解释性旁白（如"不是……而是……的那种XX"）。
+禁跳出角色视角进行科普或分析。
+叙事统一使用第三人称。禁止出现第一人称"我"的视角。禁止在角色A和角色B的内心独白/感知之间跳切。始终用一个固定外部视角描叙所有角色的言行。
 
 【多人≥2角色】
   每段覆盖全部在场角色，禁任何角色整段无描写。
@@ -595,7 +602,7 @@
       vocabulary: {
         action_verbs: ["顶","插","抽送","磨","碾","搅","灌","吞","夹","裹","套弄","夹紧","吸榨","扭腰榨","深埋","贯穿","捣","研磨","顶弄","塞满","拔出","没入","填满","撞击","突入","腰振","活塞","抽插","打桩","贯入","捻","揉","挤","榨","骑","吞没","撞入","没根","蹭","扭","蹭蹭","求","贪","缠","吞吸","渴求"],
         genital_terms: ["肉棒","蘑菇头","小穴","蜜穴","肉壁","菊穴","后穴","嫩穴","肉穴","淫穴","肉唇","小痘痘","小豆豆","小核","小蕾","蒂头","子宫口","肉芽","肉褶","小屁屁","屁屁口","菊蕾","蛋蛋","小玉玉","铃口","柱身","深处","最奥","肉缝","蜜壶","小蘑菇","肉竿","小嘴","馋嘴","小洞","嫩肉"],
-        body_parts: ["乳房","乳头","乳尖","奶头","乳首","腰","臀","大腿根","腿心","股间","舌头","手指","脚趾","小腹","后颈","锁骨","耳垂","肚脐"],
+        body_parts: ["乳房","乳头","乳尖","奶头","乳首","腰","臀","大腿根","股间","舌头","手指","脚趾","小腹","后颈","锁骨","耳垂","肚脐"],
         moans: ["嗯♡","啊♡","呜♡","哈啊♡","咿♡","呃♡","不要♡","去了♡","嗯嗯♡","啊啊♡","呜呜♡","哈嗯♡","唔♡","哼♡","别♡","停下♡","不行了♡","还要♡","好深♡","要坏掉了♡","快一点♡","慢一点♡","那里♡","好舒服♡","顶到了♡","去了去了♡","射了♡","好烫♡","好多♡","满了♡","进不去了♡","呼啊♡","嘶♡","啊嗯♡","嗯呜♡","呀♡","噫♡","好棒♡","受不了了♡","给我♡","用力♡","喵♡","喵呜♡","呜喵♡","喵啊♡","喵嗯♡","喵哈♡","姆唔♡","姆嗯♡","唔姆♡","嗯~♡","啊~♡","呜~♡","哈啊~♡","呼~♡","咿~♡","嗯！♡","啊！♡","去了！♡","不行！♡","烫！♡","满了！♡","呢♡","的呢♡","嘛♡","了嘛♡","啦♡","了啦♡","哟♡","喔♡","呐♡","噗♡","的说♡","想要嘛♡","给我啦♡","还要呢♡","好嘛♡","快点啦♡","别停呢♡","喵~♡","喵呜~♡","呜喵~♡","姆唔~♡","唔姆~♡","不行了啦♡","去了啦♡","满了啦♡","好烫喔♡","受不了了嘛♡"],
         ejaculation: ["射精","灌满","涌出","喷射","注入","中出","爆射","溢出","释放","迸射"],
         fluids: ["淫水","爱液","精液","白浊","汁液","浓精","热液","浊液","春水","淫汁","潮水","蜜汁","先走汁","馋水"],
@@ -797,6 +804,7 @@
         if (state.cumulativeTokens === undefined) state.cumulativeTokens = 0;
         if (!state.worldBooks) state.worldBooks = [];
         if (!state.activeWorldBooks) state.activeWorldBooks = [];
+        state.history = (state.history || []).filter(m => m.content);
         state.abortController = null;
         state.pendingImportData = null;
         return true;
@@ -1121,34 +1129,51 @@ F. 体位种类计数规则
         }
       }
 
-      // 提取激活卡片的 V4 关键数据
+      // 提取激活卡片的 V4 关键数据 + 识别用户卡
       let cardStr = '';
+      let userCardName = '';
+      let otherCardNames = [];
       if (state.activeCards?.length) {
         cardStr += '\n### 激活角色卡（选项须遵守其数据）\n';
-        for (const c of state.activeCards) {
+        for (let i = 0; i < state.activeCards.length; i++) {
+          const c = state.activeCards[i];
           const obj = typeof c.content === 'string' ? tryParseJSON(c.content) : c.content;
           if (!obj) continue;
-          cardStr += `- ${obj.name || c.name}: ${obj.physical?.breasts?.cup || '?'}杯, 性角色=${obj.sexual_preferences?.role || '?'}, 硬限=[${(obj.sexual_preferences?.hard_limits || []).join(',') || '无'}], kinks=[${(obj.sexual_preferences?.kinks || []).slice(0,5).join(',') || '无'}]`;
+          const isUser = obj.tags && (obj.tags.includes('用户') || obj.tags.includes('本人'));
+          const tag = isUser ? '【用户卡-主视角】' : '';
+          if (isUser) userCardName = obj.name || c.name;
+          else otherCardNames.push(obj.name || c.name);
+          cardStr += `${tag}- ${obj.name || c.name}: ${obj.physical?.breasts?.cup || '?'}杯, 性角色=${obj.sexual_preferences?.role || '?'}, 硬限=[${(obj.sexual_preferences?.hard_limits || []).join(',') || '无'}], kinks=[${(obj.sexual_preferences?.kinks || []).slice(0,5).join(',') || '无'}]`;
           if (obj.sexual_preferences?.orgasm_pattern?.average_per_session) {
             cardStr += `, 每session高潮${obj.sexual_preferences.orgasm_pattern.average_per_session}次`;
           }
+          const spk = obj.speech || {};
+          if (spk.style || spk.speech_tone) cardStr += `, 口癖="${spk.style || spk.speech_tone}"`;
+          if ((spk.catchphrases || []).length) cardStr += `, 口头禅=[${spk.catchphrases.slice(0,5).join(',')}]`;
           cardStr += '\n';
         }
       }
 
       let extra = `\n\n=== 选项生成命令 ===\n`;
-      extra += `\n【输出格式】每行"- "开头。3-5个选项。每项8-15字。⚠超15字→无效丢弃。\n`;
+      const optMax = userCardName ? (5 + otherCardNames.length * 3) : 5;
+      extra += `\n【输出格式】每行"- "开头。${userCardName ? '4-' + optMax : '3-5'}个选项。每项8-15字。⚠超15字→无效丢弃。\n`;
       extra += `\n【强制规则】\n`;
       extra += `1. 动词开头。禁主语/原因/后果。\n`;
       extra += `2. 禁叙事描写/形容词/心理活动/环境氛围。\n`;
-      extra += `3. 禁以对话为选项(如"说'我喜欢'")。用动作概括意图(如"用骚话挑逗她")。\n`;
+      extra += `3. 禁以对话为选项(如"说'我喜欢'\")。用动作概括意图(如"用骚话挑逗她")。\n`;
       extra += `4. 必须推进当前节拍。禁跳下一拍。\n`;
       extra += `5. 禁违反任何角色hard_limits。\n`;
       extra += `6. 必须匹配角色性角色(role)和性癖(kinks)。\n`;
       extra += `7. 大纲指定的体位/高潮要求必须在选项中体现。\n`;
       extra += `8. 必须多样化: 动作推进/对话发起/环境互动/体位切换各方向分布。\n`;
-      extra += `9. 多人(≥2角色): 选项含不同角色动作+角色间互动。≥2选项指向不同角色。\n`;
-      extra += `10. 选项=动作简写，不是叙事。禁续写故事。禁输出非选项内容。\n`;
+      if (userCardName) {
+        extra += `9. 【视角规则】${userCardName}=用户主视角。≥60%选项以${userCardName}的动作/对话/感知为出发点。其余选项平均分配给${otherCardNames.join('、') || '其他角色'}，各角色选项数大致相等。禁把AI混为选项执行者。\n`;
+        extra += `10. 【口癖】选项动词/措辞须匹配对应角色的口癖和口头禅。用户卡选项用第一人称视角动作(如"挺腰"\"抓住她头发"\"在她耳边说XX")。\n`;
+      } else {
+        extra += `9. 多人(≥2角色): 选项含不同角色动作+角色间互动。≥2选项指向不同角色。\n`;
+      }
+      extra += `11. 选项=动作简写，不是叙事。禁续写故事。禁输出非选项内容。\n`;
+
 
       extra += `\n【格式示例（需严格遵循）】\n`;
       extra += `- 翻身骑上去，自己扭腰\n- 抓住她的头发拉近距离\n- 把她抱到窗台上\n- 在她耳边说骚话\n- 让她自己掰开给你看\n`;
@@ -1174,6 +1199,7 @@ F. 体位种类计数规则
       if (prefs.pace) extra += `节奏: ${prefs.pace}。慢玩→选项必含感官/环境/调情。均衡→动作/感官交替。激烈→体位切换/动作推进/高潮导向。不匹配→无效选项。\n`;
       if (prefs.outlineLength) extra += `时长: ${prefs.outlineLength}。短篇→选项集中推高潮,禁中场休息/场景切换。长篇/史诗→允休息/二次勃起/场景切换/道具。\n`;
 
+      extra += '\n【用词禁令】选项禁用以下医学/解剖术语：耻骨/括约肌/会阴/前列腺/子宫颈/海绵体/尿道/肛管/耻骨联合。改用动作描述替代。';
       extra += '\n只输出选项。不输出任何其他内容。';
 
       return BASE_SYSTEM_PROMPT + extra;
@@ -1595,6 +1621,8 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
       state.activeCards.forEach(c => {
         const obj = typeof c.content === 'string' ? tryParseJSON(c.content) : c.content;
         if (!obj) { cc += `\n--- ${c.name} ---\n${c.content}\n`; return; }
+        const spk = obj.speech || {};
+        const spkTone = spk.style || spk.speech_tone || obj.personality?.speech_tone || '';
         if (isEarly) {
           cc += `\n--- ${obj.name || c.name} ---\n`;
           cc += `身份: ${obj.age || ''}岁/${obj.gender || ''}/${obj.occupation || ''}\n`;
@@ -1606,8 +1634,14 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
           cc += `性角色: ${obj.sexual_preferences?.role || ''}\n`;
           cc += `高潮: ${obj.sexual_preferences?.orgasm_pattern?.average_per_session || 0}次, 触发: ${(obj.sexual_preferences?.orgasm_pattern?.triggers || []).join(',')}\n`;
           cc += '硬限: ' + ((obj.sexual_preferences?.hard_limits || []).join(',') || '无') + '\n';
+          if (spkTone) cc += `口癖/说话风格: ${spkTone}\n`;
+          if ((spk.catchphrases || []).length) cc += `口头禅: ${spk.catchphrases.join(',')}\n`;
+          if ((spk.moan_vocabulary || []).length) cc += `呻吟词汇库: ${spk.moan_vocabulary.join(',')}\n`;
+          if ((obj.bans || []).length) cc += `用词禁令: ${obj.bans.join(',')}\n`;
         } else {
-          cc += `\n--- ${obj.name || c.name} --- ${obj.physical?.breasts?.cup || ''}杯/${obj.sexual_preferences?.role || ''}。硬限: ${(obj.sexual_preferences?.hard_limits || []).join(',') || '无'}\n`;
+          cc += `\n--- ${obj.name || c.name} --- ${obj.physical?.breasts?.cup || ''}杯/${obj.sexual_preferences?.role || ''}。硬限: ${(obj.sexual_preferences?.hard_limits || []).join(',') || '无'}`;
+          if (spkTone) cc += `。口癖="${spkTone}"`;
+          cc += '\n';
         }
       });
       return cc;
@@ -1881,7 +1915,24 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
                 fullContent += deltaObj.content;
                 if (options.onChunk) options.onChunk({ delta: deltaObj.content, full: fullContent });
               }
-            } catch (e) {}
+            } catch (e) { debugLog('[流式解析异常] ' + e.message + ' | raw=' + trimmed.slice(0,80)); }
+          }
+        }
+        // 处理流结束后 buffer 残余
+        if (buffer.trim()) {
+          const trimmed = buffer.trim();
+          if (trimmed.startsWith('data:')) {
+            const jsonStr = trimmed.slice(5).trim();
+            if (jsonStr !== '[DONE]') {
+              try {
+                const chunk = JSON.parse(jsonStr);
+                const deltaObj = chunk.choices?.[0]?.delta;
+                if (deltaObj?.content) {
+                  fullContent += deltaObj.content;
+                  if (options.onChunk) options.onChunk({ delta: deltaObj.content, full: fullContent });
+                }
+              } catch (e) { debugLog('[残余buffer解析异常] ' + e.message); }
+            }
           }
         }
       } finally {
@@ -1982,9 +2033,13 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
         _streamPendingEl.textContent = _streamPendingFull;
         smartScrollToBottom(document.getElementById('mainStoryArea'));
       }
+      _streamPendingEl = null;
+      _streamPendingFull = '';
       _streamRafPending = false;
     }
     function rAFUpdateContent(contentEl, full) {
+      contentEl.textContent = full;
+      smartScrollToBottom(document.getElementById('mainStoryArea'));
       _streamPendingEl = contentEl;
       _streamPendingFull = full;
       if (!_streamRafPending) {
@@ -1996,11 +2051,11 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
     function renderStory() {
       const container = document.getElementById('storyMessages');
       const empty = document.getElementById('storyEmptyHint');
-      const displayMsgs = state.history.filter(m => m.role !== 'system');
+      const displayMsgs = state.history.filter(m => m.role !== 'system' && m.content);
       if (!displayMsgs.length) { container.innerHTML = ''; empty.classList.remove('hidden'); return; }
       empty.classList.add('hidden');
       let html = '';
-      displayMsgs.forEach(msg => {
+      displayMsgs.forEach((msg, i) => {
         const roleLabel = msg.role === 'user' ? '你' : 'AI';
         html += `<div class="story-msg"><div class="msg-role">${roleLabel}</div><div class="msg-content">${escapeHtml(msg.content)}</div></div>`;
       });
@@ -2143,6 +2198,7 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
         const opts = await generateOptionsFromContext();
         state.currentOptions = opts;
         saveState();
+        _flushStreamDom();
         updateUI();
         toast('故事开始!');
       } catch (e) {
@@ -2175,14 +2231,21 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
       if (!state.gameStarted) { toast('游戏尚未开始'); return; }
       if (isProcessing) { toast('请等待当前生成完成'); return; }
       isProcessing = true;
-      state.history.push({ role: 'user', content: optText });  // ✅ 去掉冗余前缀
-      saveState(); updateUI();
+      debugLog(`[handleOption] 开始, history长度=${state.history.length}`);
+      state.history.push({ role: 'user', content: optText });
+      // 直接追加用户动作到 DOM，不重建整个故事区（避免摧毁正在流式的元素）
+      const storyElPre = document.getElementById('storyMessages');
+      const userMsgEl = document.createElement('div');
+      userMsgEl.className = 'story-msg';
+      userMsgEl.innerHTML = '<div class="msg-role">你</div><div class="msg-content">' + escapeHtml(optText) + '</div>';
+      storyElPre.appendChild(userMsgEl);
+      smartScrollToBottom(document.getElementById('mainStoryArea'));
+      document.getElementById('optionsContainer').innerHTML = '';
+      saveState();
       const storyEl = document.getElementById('storyMessages');
       let streamMsgEl = null;
-      showLoading(); updateLoading('思考中...', 5);
       try {
         await checkAndSliceHistory();
-        updateLoading('蓄力中...', 15);
         const narrativeSys = buildNarrativeSystemMessage();
         const chatMessages = state.history.filter(m => m.role !== 'system');
         const fullMessages = [{ role: 'system', content: narrativeSys }];
@@ -2195,7 +2258,6 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
           fullMessages.push({ role: 'system', content: '早期剧情摘要:\n' + state.summaryBlocks.join('\n---\n') });
         }
         fullMessages.push(...chatMessages);
-        hideLoading();
         streamMsgEl = document.createElement('div');
         streamMsgEl.className = 'story-msg';
         streamMsgEl.innerHTML = '<div class="msg-role">AI</div><div class="msg-content"></div>';
@@ -2205,13 +2267,24 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
         // ★ 先占位写入 history，流式过程中实时更新
         const assistantMsg = { role: 'assistant', content: '' };
         state.history.push(assistantMsg);
-        const story = await callAPI(fullMessages, {
-          maxTokens: state.apiMaxTokens, temperature: 0.9, enableTools: true,
-          onChunk: ({ full }) => {
-            assistantMsg.content = full;
-            rAFUpdateContent(contentEl, full);
+        let story = '';
+        for (let retry = 0; retry < 3; retry++) {
+          if (retry > 0) {
+            debugLog(`[handleOption] 输出为空，重试第${retry}次`);
+            assistantMsg.content = '';
+            contentEl.textContent = '';
           }
-        });
+          story = await callAPI(fullMessages, {
+            maxTokens: state.apiMaxTokens, temperature: 0.9, enableTools: true,
+            onChunk: ({ full }) => {
+              assistantMsg.content = full;
+              rAFUpdateContent(contentEl, full);
+            }
+          });
+          if (!assistantMsg.content && story) assistantMsg.content = story;
+          if (assistantMsg.content) break;
+        }
+        debugLog(`[handleOption] callAPI完成, story长度=${story.length}, assistantMsg长度=${assistantMsg.content.length}`);
         saveState();
 
         maybeAdvanceBeat(story);
@@ -2221,6 +2294,7 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
         optsEl.innerHTML = '<div style="color:#888;padding:8px;font-size:13px;">生成选项...</div>';
         const opts = await generateOptionsFromContext();
         optsEl.innerHTML = origHTML;
+        _flushStreamDom();
         state.currentOptions = opts; saveState(); updateUI();
       } catch (e) {
         hideLoading(); if (streamMsgEl) streamMsgEl.remove();
@@ -2233,15 +2307,22 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
       if (!state.gameStarted || !text.trim()) return;
       if (isProcessing) { toast('请等待当前生成完成'); return; }
       isProcessing = true;
+      debugLog(`[handleCustomInput] 开始, history长度=${state.history.length}`);
       document.getElementById('customInput').value = '';  // ✅ 立即清空
       state.history.push({ role: 'user', content: text });
-      saveState(); updateUI();
+      // 直接追加用户动作到 DOM，不重建整个故事区（避免摧毁正在流式的元素）
+      const storyElPre = document.getElementById('storyMessages');
+      const userMsgEl = document.createElement('div');
+      userMsgEl.className = 'story-msg';
+      userMsgEl.innerHTML = '<div class="msg-role">你</div><div class="msg-content">' + escapeHtml(text) + '</div>';
+      storyElPre.appendChild(userMsgEl);
+      smartScrollToBottom(document.getElementById('mainStoryArea'));
+      document.getElementById('optionsContainer').innerHTML = '';
+      saveState();
       const storyEl = document.getElementById('storyMessages');
       let streamMsgEl = null;
-      showLoading(); updateLoading('思考中...', 5);
       try {
         await checkAndSliceHistory();
-        updateLoading('蓄力中...', 15);
         const narrativeSys = buildNarrativeSystemMessage();
         const chat = state.history.filter(m => m.role !== 'system');
         const fullMessages = [{ role: 'system', content: narrativeSys }];
@@ -2254,7 +2335,6 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
           fullMessages.push({ role: 'system', content: '早期摘要:\n' + state.summaryBlocks.join('\n---\n') });
         }
         fullMessages.push(...chat);
-        hideLoading();
         streamMsgEl = document.createElement('div');
         streamMsgEl.className = 'story-msg';
         streamMsgEl.innerHTML = '<div class="msg-role">AI</div><div class="msg-content"></div>';
@@ -2264,13 +2344,24 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
         // ★ 先占位写入 history，流式过程中实时更新
         const assistantMsg = { role: 'assistant', content: '' };
         state.history.push(assistantMsg);
-        const story = await callAPI(fullMessages, {
-          maxTokens: state.apiMaxTokens, temperature: 0.9, enableTools: true,
-          onChunk: ({ full }) => {
-            assistantMsg.content = full;
-            rAFUpdateContent(contentEl, full);
+        let story = '';
+        for (let retry = 0; retry < 3; retry++) {
+          if (retry > 0) {
+            debugLog(`[handleCustomInput] 输出为空，重试第${retry}次`);
+            assistantMsg.content = '';
+            contentEl.textContent = '';
           }
-        });
+          story = await callAPI(fullMessages, {
+            maxTokens: state.apiMaxTokens, temperature: 0.9, enableTools: true,
+            onChunk: ({ full }) => {
+              assistantMsg.content = full;
+              rAFUpdateContent(contentEl, full);
+            }
+          });
+          if (!assistantMsg.content && story) assistantMsg.content = story;
+          if (assistantMsg.content) break;
+        }
+        debugLog(`[handleCustomInput] callAPI完成, story长度=${story.length}, assistantMsg长度=${assistantMsg.content.length}`);
         saveState();
 
         maybeAdvanceBeat(story);
@@ -2280,6 +2371,7 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
         optsEl.innerHTML = '<div style="color:#888;padding:8px;font-size:13px;">生成选项...</div>';
         const opts = await generateOptionsFromContext();
         optsEl.innerHTML = origHTML;
+        _flushStreamDom();
         state.currentOptions = opts; saveState(); updateUI();
         document.getElementById('customInput').value = '';
       } catch (e) {
@@ -2488,6 +2580,8 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
         state.summaryBlocks = state.summaryBlocks || [];
         saveState();
         renderSettings();
+        _flushStreamDom();
+        // startGame 之前 storyEl 是空的，这里 updateUI() 安全
         updateUI();
         toast('导入成功，请重新选择角色卡');
       }
@@ -2629,7 +2723,11 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
           let html = '';
           state.cards.forEach((card, idx) => {
             const isActive = state.activeCards.some(ac => ac.id === card.id);
-            html += `<div class="card-select-item${isActive?' selected':''}" data-card-idx="${idx}"><div class="card-name">${escapeHtml(card.name)}</div><div class="card-check">✓</div></div>`;
+            const obj = typeof card.content === 'string' ? tryParseJSON(card.content) : card.content;
+            const isUser = obj && obj.tags && (obj.tags.includes('用户') || obj.tags.includes('本人'));
+            const userClass = isUser ? ' user-card' : '';
+            const userBadge = isUser ? '<span class="card-user-badge">👑 用户卡</span>' : '';
+            html += `<div class="card-select-item${isActive?' selected':''}${userClass}" data-card-idx="${idx}">${userBadge}<div class="card-name">${escapeHtml(card.name)}</div><div class="card-check">✓</div></div>`;
           });
           cardContainer.innerHTML = html;
         }
