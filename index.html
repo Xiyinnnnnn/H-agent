@@ -232,6 +232,8 @@
           <div class="field-row"><label>额外限制</label><input type="text" id="prefLimits" placeholder="例如: 避免暴力、特定词汇禁用" /></div>
           <div class="field-row"><label>高潮要求</label><select id="prefOrgasm"><option value="多次高潮">多次高潮</option><option value="单次高潮">单次高潮</option><option value="无要求" selected>无要求</option></select></div>
           <div class="field-row"><label>射精部位偏好</label><input type="text" id="prefCum" placeholder="例如: 内射、颜射、体外" /></div>
+          <div class="field-row"><label>叙事节奏</label><select id="prefPace"><option value="慢玩">慢玩 (细腻铺陈)</option><option value="均衡" selected>均衡 (标准节奏)</option><option value="激烈">激烈 (快速推进)</option></select></div>
+          <div class="field-row"><label>大纲时长</label><select id="prefOutlineLength"><option value="短篇">短篇 (5~8节拍)</option><option value="中篇" selected>中篇 (8~15节拍)</option><option value="长篇">长篇 (15~25节拍)</option><option value="史诗">史诗 (25+节拍)</option></select></div>
         </div>
       </div>
 
@@ -476,24 +478,31 @@
     const EXECUTION_RULES = `
 === 执行规则 ===
 
-1. 角色卡和世界书是当前场景的唯一事实来源。不得偏离其中任何已声明的内容。
-2. 描写角色的身体细节前，必须调用 recall_context 查询该角色的对应字段。不得凭记忆编造。
-3. 进入新地点前，必须调用 recall_context 查询该地点的世界书条目。不得凭记忆编造地点细节。
-4. 切换体位时，必须调用 recall_context 查询体位世界书条目。不得凭记忆编造体位描述。
-5. 大纲指定的"当前节拍"是强制走向。不得跳到下一节拍。
-6. 大纲指定的"性里程碑"是强制目标。不得跳过或概括里程碑中的性行为。
-7. 大纲的 global_rules 是绝对禁令和硬性要求。违反任何一条视为输出无效。
-8. 性器官使用直白术语。禁止隐喻、代称、文艺化表达。
-9. 高潮描写必须遵循角色卡中声明的 orgasm_pattern：接近信号→爆发→余韵。不得缩短或跳过任何阶段。
-10. 硬限（hard_limits）绝对不可出现。软限（soft_limits）仅在用户主动选择时出现。
-11. 每个情色段落覆盖至少两种感官。触觉和听觉为必需项。
-12. 张力等级 ≤3：长句铺氛围。4-6：中等句长，动作与反应交替。7-8：句子缩短，动作紧跟生理反应。9-10：短句轰炸，每句一个画面，禁止心理活动。高潮结束：至少50字余韵。
-13. 不输出元评论、解释、系统消息、角色名标签、分段标记。
-14. 不确定任何事实时，调用 recall_context 查询。禁止猜测。
-15. 多人场景（激活角色卡≥2时）：每个情色段落必须覆盖所有在场角色。覆盖方式为动作轮换或交叉剪辑。
-16. 多人场景中，每写一个插入/舔舐/抚摸动作紧跟该角色自身的生理反应，然后立即切换到另一角色。不可连续两句写同一角色。
-17. 多人场景禁止写"他轮流进入她们的身体"等概括句式——必须写每一次进入、每一个角色的反应。
-18. 多人场景感官覆盖要求：每个输出段落须至少覆盖3种感官，且至少2个角色被写入感官描写。`;
+【事实查询】角色卡+世界书=唯一事实源。禁偏离。违反→输出无效。
+  以下场景必须调 recall_context，禁凭记忆：
+  身体细节→character_field_paths | 新地点→world_queries(cat=地点) | 体位→world_group_filter="sex_position" | 高潮→character_field_paths(orgasm_pattern) | 道具→world_queries(cat=道具) | 不确定→调工具，禁猜。
+  工具优先记忆。"记得"也必须调工具确认→再叙事。
+
+【大纲】当前节拍=强制走向，禁跳下一拍。性里程碑=强制目标，禁跳过/概括。
+  global_rules 每条=绝对禁令/硬性要求，违反→输出无效。
+
+【用词】性器官用直白术语。禁隐喻。禁代称。禁文艺化。
+
+【感官】每段落必须含触觉+听觉。禁缺任一。在此基础上叠加其他感官。
+
+【高潮】严格按 orgasm_pattern 三阶段：接近信号→爆发→余韵。禁缩短。禁跳阶段。
+  高潮后≥50字余韵，禁立即收尾。
+  硬限绝对禁止出现。软限仅用户选项触发时出现。
+
+【句长】tension 1-3: 长句 | 4-6: 中句, 动作/反应交替 | 7-8: 短句, 动作紧跟生理反应 | 9-10: 极短句, 一句一画面, 禁心理活动, 禁完整对话。
+
+【输出】禁元评论/解释/系统消息/角色名标签/分段标记。
+
+【多人≥2角色】
+  每段覆盖全部在场角色，禁任何角色整段无描写。
+  动作→该角色生理反应→立即切另一角色。禁连续两句同角色。
+  禁概括("轮流""一个接一个")。写每次进入和每个角色的反应。
+  每段≥3种感官，≥2角色写入感官。`;
 
     const WORLD_ENTRY_TEMPLATE = {
       id: "",
@@ -695,7 +704,7 @@
       narrativePresets: { default: JSON.parse(JSON.stringify(DEFAULT_NARRATIVE_MODULE)) },
       cards: [],               // 全部角色卡（管理用）
       activeCards: [],         // 当前游戏中使用的角色卡（由导入时选择）
-      preferences: { style: '混合体', length: '500', scenes: '', play: '', position: '', limits: '', orgasm: '无要求', cum: '' },
+      preferences: { style: '混合体', length: '500', scenes: '', play: '', position: '', limits: '', orgasm: '无要求', cum: '', pace: '均衡', outlineLength: '中篇' },
       worldBooks: [],
       activeWorldBooks: [],
       outline: '',
@@ -771,6 +780,8 @@
         if (!raw) return false;
         const data = JSON.parse(raw);
         Object.assign(state, data);
+        state.debugLogs = [];
+        state.debugEnabled = false;
         if (!state.narrativeModule) state.narrativeModule = JSON.parse(JSON.stringify(DEFAULT_NARRATIVE_MODULE));
         if (!state.narrativePresets) state.narrativePresets = { default: JSON.parse(JSON.stringify(DEFAULT_NARRATIVE_MODULE)) };
         if (!state.summaryBlocks) state.summaryBlocks = [];
@@ -804,61 +815,94 @@
         '混合体': '对话与描写交替。每段落对话和描写各占约50%。'
       };
       prefsBlock += `${styleMap[prefs.style] || styleMap['混合体']}\n`;
-      prefsBlock += `单次输出不少于${prefs.length}字。达到字数前不得自然收束。\n`;
-      if (prefs.scenes) prefsBlock += `偏好场景: ${prefs.scenes} — 优先在该场景中展开。若当前不在该场景，通过剧情自然过渡。\n`;
-      if (prefs.play) prefsBlock += `偏好玩法: ${prefs.play} — 须在情节中体现此玩法元素。\n`;
-      if (prefs.position) prefsBlock += `体位偏好: ${prefs.position} — 性行为中优先使用此体位。\n`;
-      if (prefs.limits) prefsBlock += `额外限制: ${prefs.limits} — 绝对禁止出现以下内容。\n`;
+      prefsBlock += `输出≥${prefs.length}字。未达标禁收束。\n`;
+      if (prefs.scenes) prefsBlock += `场景: ${prefs.scenes}。在此展开。非此场景→过渡至此。\n`;
+      if (prefs.play) prefsBlock += `玩法: ${prefs.play}。情节必体现。\n`;
+      if (prefs.position) prefsBlock += `体位: ${prefs.position}。性行为必用。\n`;
+      if (prefs.limits) prefsBlock += `限制: ${prefs.limits}。绝对禁止出现。违反→输出无效。\n`;
       if (prefs.orgasm !== '无要求') {
         const orgasmMap = {
-          '单次': '本次场景中角色高潮须恰好1次。描写完整的接近信号→爆发→余韵链条。',
-          '多次': '本次场景中角色须高潮≥3次。每次含完整的接近信号→爆发→余韵。次间休息≤1分钟。',
-          '连续': '本次场景中角色须连续高潮无休息间隔。高潮结束后立即被刺激至下一次高潮。',
-          '强制': '本次场景中被强制持续刺激至多次高潮，直至崩溃。角色可恳求停止但不会停止刺激。'
+          '单次': '高潮×1。完整链: 接近信号→爆发→余韵。禁省略。',
+          '多次': '高潮≥3次。每次完整链: 接近信号→爆发→余韵。间隔≤1分钟。禁合并。',
+          '连续': '连续高潮无间隔。结束→立即刺激下次。禁写冷却/休息。',
+          '强制': '强制连续高潮至崩溃。刺激不停。可有恳求但刺激不停。禁提前结束。'
         };
-        prefsBlock += `高潮要求: ${orgasmMap[prefs.orgasm] || prefs.orgasm}\n`;
+        prefsBlock += `高潮: ${orgasmMap[prefs.orgasm] || prefs.orgasm}\n`;
       }
-      if (prefs.cum) prefsBlock += `射精部位偏好: ${prefs.cum} — 精液须射在该部位。该部位须在射精前有铺垫描写（触碰/亲吻/注视）。\n`;
+      if (prefs.cum) prefsBlock += `射精部位: ${prefs.cum}。精液必射于此。射前必铺垫(触/吻/注视)。禁射他处。\n`;
+      const paceMap = {
+        '慢玩': '节奏=慢玩。违反任一→段落无效：\n'
+          + '① 每段1-2动作。禁≥3。动作写满感官再推进。\n'
+          + '② 前戏≥全文30%。性器接触前≥3长段。禁跳前戏直入性行为。\n'
+          + '③ 高潮逐秒展开。禁"达到高潮"一笔带过。前兆→平台期→峰值→余韵，每阶段≥2句。\n'
+          + '④ 段间允纯对话/纯心理作缓冲。禁加速跳过。\n'
+          + '⑤ 中长句为主(15-30字/句)。禁连续>3句短句(<10字)。\n'
+          + '⑥ 触碰→感官→心理→下一寸。禁跳步骤。',
+        '均衡': '节奏=均衡。违反任一→段落无效：\n'
+          + '① 动作与感官交替。每段1动作+1感官。\n'
+          + '② 前戏15-20%。性器接触前1-2段。\n'
+          + '③ 高潮紧凑：前兆→巅峰2-3段完成。禁拖沓/跳跃。\n'
+          + '④ 句长混合(10-25字)，动作句与感官句交替。',
+        '激烈': '节奏=激烈。违反任一→段落无效：\n'
+          + '① 动作驱动。每段≥3动作。禁单动作段。\n'
+          + '② 前戏≤1段(允0)。允从插入开始。禁长铺垫。\n'
+          + '③ climax_phase连≥3beat。每beat可含多次高潮。禁长余韵。\n'
+          + '④ 每段≤150字。禁长铺陈。\n'
+          + '⑤ 禁纯心理段。禁纯对话段。\n'
+          + '⑥ 短句为主(5-15字/句)。长句(>20字)占比≤30%。'
+      };
+      if (prefs.pace) prefsBlock += `【强制】叙事节奏模式: ${prefs.pace}\n${paceMap[prefs.pace] || paceMap['均衡']}\n`;
+      const outlineLengthMap = {
+        '短篇': '规模=短篇。超限→故事无效：\n'
+          + '① 场景1-2。禁≥3。\n'
+          + '② 体位≤2种。禁≥3。\n'
+          + '③ 高潮1-2次。禁≥3。\n'
+          + '④ 故事内时长30min-1h。\n'
+          + '⑤ 字数5000-15000。',
+        '中篇': '规模=中篇。超限→故事无效：\n'
+          + '① 场景2-3。禁≤1/≥4。\n'
+          + '② 体位3-5种。禁≤2/≥6。\n'
+          + '③ 高潮2-3次。禁≤1/≥4。\n'
+          + '④ 故事内时长1-2h。\n'
+          + '⑤ 字数15000-30000。',
+        '长篇': '规模=长篇。超限→故事无效：\n'
+          + '① 场景3-5。禁≤2。\n'
+          + '② 体位5-8种。禁≤4。\n'
+          + '③ 高潮3-5次。禁≤2。\n'
+          + '④ 故事内时长2-4h。必含≥1次中场休息+二次勃起。\n'
+          + '⑤ 字数30000-60000。',
+        '史诗': '规模=史诗。超限→故事无效：\n'
+          + '① 场景≥5。禁≤4。\n'
+          + '② 体位≥8种。禁≤7。\n'
+          + '③ 高潮≥5次。禁≤4。\n'
+          + '④ 故事内时长≥4h。必含≥2轮休息+≥1道具+角色轮换。\n'
+          + '⑤ 字数60000-120000。',
+      };
+      if (prefs.outlineLength) prefsBlock += `【强制】大纲时长级别: ${prefs.outlineLength}\n${outlineLengthMap[prefs.outlineLength] || outlineLengthMap['中篇']}\n`;
 
       prefsBlock += '\n=== 多人场景规则 ===\n';
-      prefsBlock += '\n【空间与身体位置编排】\n';
-      prefsBlock += '1. 每个角色占据一个明确的身体位置。用身体部位+方位描述，如"[角色A]跪在身前含住龟头，[角色B]贴在背后用乳房蹭肩胛骨"。\n';
-      prefsBlock += '2. 身体位置随体位切换而变化。每次体位切换时，用一句话重新声明所有角色的新位置。\n';
-      prefsBlock += '3. 相邻角色之间须产生物理接触——身体位置决定谁能碰到谁、碰到哪里。\n';
-      prefsBlock += '\n【注意力轮换——防止角色掉线】\n';
-      prefsBlock += '4. 每个输出段落必须覆盖所有在场角色。无角色可连续两段毫无描写。\n';
-      prefsBlock += '5. 轮换模式：主角动作→角色A反应→角色B反应→角色A动作→主角反应→角色B反应→...。禁止连续三段只写同一个角色。\n';
-      prefsBlock += '6. 某角色暂不参与性行为主体动作时，必须描写其"旁观反应"——手在做什么、眼神、呼吸声、自慰、等待时的身体语言。\n';
-      prefsBlock += '\n【多线并行叙事】\n';
-      prefsBlock += '7. 两个及以上角色同时对主角施加动作时，采用交叉剪辑——每段切换视角。一句写角色A的动作，下一句写角色B的动作，下一句写主角受到的叠加感受。\n';
-      prefsBlock += '8. 多角色同时对主角身体不同部位施加刺激时，感官描写须叠加并明确区分来源："[角色A]的舌头在乳尖打转的同时，[角色B]从下面顶进来——两股感觉撞在一起。"\n';
-      prefsBlock += '9. 禁止将多人交互简化为"轮流上"——必须是同时的、交织的、互相干扰或增强的。\n';
-      prefsBlock += '\n【角色间互动】\n';
-      prefsBlock += '10. 角色与角色之间须有互动——眼神交换、肢体触碰、对话、竞争或配合。"[角色A]从[角色B]手里接过肉棒"、"[角色A]推了推[角色B]的肩膀让她让出位置"。\n';
-      prefsBlock += '11. 角色间互动可以是对抗性的（争抢主角身体部位）或协作性的（配合刺激主角不同部位）。\n';
-      prefsBlock += '\n【多人对话管理】\n';
-      prefsBlock += '12. 多人同时说话时，以角色名开头分行写。呻吟和叫床话混在动作描写中不独立成段。\n';
-      prefsBlock += '13. 角色之间的对话（非对主角说的）须标注说话对象："[角色A]对着[角色B]低笑：\'他快不行了。\'"\n';
-      prefsBlock += '\n【高潮协调】\n';
-      prefsBlock += '14. 多人场景中高潮须有明确的先后或同时关系。先写明谁先到、谁后到、分别的触发动作。\n';
-      prefsBlock += '15. 若一个角色的高潮刺激引发另一角色同时高潮，须写清因果链。\n';
-      prefsBlock += '16. 多人同时高潮时，每人一个短句，合并为一个高潮轰炸段落——不分开写。\n';
-      prefsBlock += '\n【多人特殊禁令】\n';
-      prefsBlock += '17. 禁止某个角色连续超过200字毫无描写。\n';
-      prefsBlock += '18. 禁止将多人场景简化为"一对一轮流描写"——每个段落须体现多人同时在场的空间感。\n';
-      prefsBlock += '19. 禁止角色数量越写越少——结尾的角色数量必须等于开头的角色数量。\n';
+      prefsBlock += '\n【位置】每角色占明确位置(部位+方位)。体位切换→一句声明全部新位置。相邻角色必接触。\n';
+      prefsBlock += '例: "[角色A]跪在身前含龟头，[角色B]贴背后用乳房蹭肩胛骨"\n';
+      prefsBlock += '\n【轮换】每段覆盖全部在场角色。轮换模式: 主角动作→A反应→B反应→A动作→...。禁连续3段同角色。\n';
+      prefsBlock += '不参与主体动作的角色必写"旁观反应"(手/眼神/呼吸/自慰/身体语言)。\n';
+      prefsBlock += '\n【并线】多角色同时对主角动作→交叉剪辑: A动作→B动作→主角叠加感受。\n';
+      prefsBlock += '多角色同时刺激不同部位→感官叠写并区分来源。\n';
+      prefsBlock += '例: "[角色A]舌头在乳尖打转，同时[角色B]从下面顶进来——两股感觉撞在一起。"\n';
+      prefsBlock += '禁"轮流上"。必同时、交织、互扰/互增。\n';
+      prefsBlock += '\n【互动】角色间有互动(眼神/触碰/对话/竞争/配合)。\n';
+      prefsBlock += '例: "[角色A]从[角色B]手里接过肉棒" | "[角色A]推[角色B]肩膀让出位置"\n';
+      prefsBlock += '\n【对话】多人同说→角色名开头分行。呻吟/叫床混动作中，禁独立成段。\n';
+      prefsBlock += '角色间对话标注对象: "[角色A]对[角色B]低笑:\'他不行了。\'"\n';
+      prefsBlock += '\n【高潮】明确先后/同时关系+各自触发动作。诱发同时高潮→写清因果链。\n';
+      prefsBlock += '同时高潮→每人一短句，合并一段轰炸。禁分开写。\n';
+      prefsBlock += '\n【禁令】单角色连续>200字无描写 | 简化为一对一轮流 | 概括("轮流""一个接一个") | 角色数量减少 | 结尾角色数≠开头角色数。\n';
 
       const modStr = JSON.stringify(state.narrativeModule, null, 2);
       let result = BASE_SYSTEM_PROMPT + '\n\n=== 叙事模块 ===\n' + modStr + '\n' + prefsBlock;
-      result += '\n\n=== 工具使用（最高优先级） ===\n';
-      result += '你有 recall_context 工具。以下每个场景必须调用工具查询，禁止凭记忆猜测或依赖对话历史：\n';
-      result += '- 描写任何角色的身体细节（罩杯/阴部形状颜色/乳头/敏感带） → character_field_paths\n';
-      result += '- 进入新地点或场景切换 → world_queries + world_category_filter="地点"\n';
-      result += '- 切换体位 → world_group_filter="sex_position"\n';
-      result += '- 描写高潮 → character_field_paths 查询 orgasm_pattern\n';
-      result += '- 描写道具使用 → world_queries + world_category_filter="道具"\n';
-      result += '- 不确定角色性格/口癖/硬限/性角色 → character_queries\n';
-      result += '工具优先于记忆。即使认为"好像记得上次说过"，也必须调工具确认。调完工具后再开始写叙事。\n';
+      result += '\n\n=== 工具使用 ===\n';
+      result += '以下场景调 recall_context，禁凭记忆/对话历史：\n';
+      result += '身体细节→character_field_paths | 新地点→world_queries(cat=地点) | 体位→world_group_filter="sex_position" | 高潮→character_field_paths(orgasm_pattern) | 道具→world_queries(cat=道具) | 不确定→character_queries\n';
+      result += '⚠ 工具优先记忆。"记得"也必须调工具确认后再叙事。\n';
       result += EXECUTION_RULES;
       return result;
     }
@@ -874,14 +918,14 @@
         budgetRef += `快感积累(buildup): ${pacing.buildup_phase?.word_budget_ratio || '25%'}\n`;
         budgetRef += `高潮(climax): ${pacing.climax_phase?.word_budget_ratio || '15%'}\n`;
         budgetRef += `余韵(afterglow): ${pacing.afterglow_phase?.word_budget_ratio || '5%'}\n`;
-        budgetRef += `→ 每个 phase 的 beat 累计 estimated_words 须与此比例匹配（允许±5%偏差）。\n`;
+        budgetRef += `→ 各phase累计estimated_words按比例分配。偏差≤±5%。超差→大纲无效。\n`;
       }
 
       return BASE_SYSTEM_PROMPT + `
 
 === 大纲生成命令 ===
 
-输出以下 JSON 结构。不输出 JSON 之外的任何内容。
+禁输出JSON之外内容。只输出：
 
 {
   "title": "故事标题",
@@ -909,27 +953,56 @@
   "global_rules": ["以'必须'或'禁止'开头的跨beat规则"]
 }` + budgetRef + `
 
-=== 节拍数量（强制执行，不遵守则大纲无效）===
-1. total_estimated_words 必须 ≥ 用户偏好中的"长度要求"字数。若用户无指定，则 ≥ 角色数×5000（至少10000）。
-2. beats 数量 = max( ceil(total_estimated_words / 3000), 5 )。每个 beat 字数 1000-4000。
-3. 以下5个 erotic_phase 每个至少出现1个beat：foreplay_phase, insertion_early, buildup_phase, climax_phase, afterglow_phase。
-4. 激活角色卡≥3时，foreplay_phase 和 buildup_phase 各至少2个beat（多人需更多篇幅铺垫和轮换）。
-5. 同一 phase 可连续多个beat。但 beat 总数必须 ≥ 上述下限，不满足则大纲无效须重新生成。
+=== 节拍数量【违规则大纲无效】===
+1. total_estimated_words ≥ 用户长度要求。无指定→ ≥ 角色数×5000(min 10000)。
+2. beats = max(ceil(total_estimated_words/3000), 5)。每beat 1000-4000字。
+3. 5个phase各≥1 beat: foreplay_phase, insertion_early, buildup_phase, climax_phase, afterglow_phase。
+4. 角色≥3: foreplay_phase≥2 & buildup_phase≥2。
+5. 同phase可连排。beat总数≥下限。不足→大纲无效。
 
-=== tension 与 phase 映射 ===
-6. foreplay_phase: tension 2-5 | insertion_early: tension 5-7 | buildup_phase: tension 7-8 | climax_phase: tension 9-10 | afterglow_phase: tension 5→3
+=== 节奏偏好【⚠不匹配→大纲无效】===
+6. 按用户所选节奏模式分配 phase 的 beat 数和 tension 递进。逐条对照，不匹配→大纲无效。
+
+   【慢玩】
+   前戏≥3beat，高潮≤2beat。tension每beat升≤1级，每beat动作≤2条。体位切换间隔≥3beat。
+   允许插入纯调情/纯对话beat（不计入erotic_phase计数）。
+   禁止从insertion_early直接开始 | 禁止高潮连排 | 禁止单beat事件密度≥3。
+
+   【均衡】
+   前戏1-2beat，高潮2-3beat。tension每beat升1-2级，每beat动作2-3条。
+   禁止foreplay_phase=0 | 禁止climax_phase≥4 | 禁止tension单beat跳≥3级。
+
+   【激烈】
+   前戏≤1beat(可为0)，高潮≥3beat。tension飙升——首beat可达7，每beat升2-3级。
+   每beat动作≥3条。体位可每beat切换。同一beat内可标注多次高潮。
+   禁止纯心理活动段落 | 禁止纯对话beat | 禁止长句(单句>20字占比>30%)。
+
+=== 大纲时长【⚠任一参数出界→大纲无效】===
+7. beats/字数/高潮次数/体位种类必须落在所选时长级别的对应区间内：
+
+   短篇: beats=5~8   | 高潮=1~2  | 体位≤2  | 字数=5000~15000
+   中篇: beats=8~15  | 高潮=2~3  | 体位3~5 | 字数=15000~30000
+   长篇: beats=15~25 | 高潮=3~5  | 体位5~8 | 字数=30000~60000
+   史诗: beats=25~40 | 高潮≥5    | 体位≥8  | 字数=60000~120000
+
+8. 大纲时长与长度偏好冲突时→大纲时长优先。total_estimated_words调至对应区间后重算beats。
+9. sexual_milestone精确反映总高潮次数。史诗级≥2次射精，标注"第1次射精""第2次射精"。
+
 
 === 内容规则 ===
-7. 每个 beat 的 estimated_words 须按叙事模块的 phase 预算比例分配（见上方budgetRef）。各phase累计字数与比例偏差≤±5%。
-8. key_actions 每条不超过30字，写主干动作，不写描写。
-9. sexual_milestone 线性推进，不回退。
-10. required_card_fields 用点号路径，如"角色名.orgasm_pattern.during_orgasm"。
-11. transition_to_next 写具体画面，不写抽象描述。
-12. global_rules 每条以"必须"或"禁止"开头。至少包含：角色硬限禁令、高潮描写规则、体裁禁令（如"禁止文学隐喻"）。
-13. phase_writing_rule 每个 beat 必填。从叙事模块对应的 phase 中推导句法/感官/心理/对话规则。不同 phase 的 beat 写作规则必须有差异。
-14. 如果 active_characters 数量≥3，global_rules 须额外包含："每个beat的key_actions须拆分到具体角色（如'[角色A]从后面插入'而非'插入她'）"、"高潮beat须标注各角色的高潮顺序（角色A先→角色B同时→角色C后）"、"禁止任何beat只涉及部分角色——每个beat须覆盖所有active_characters"。
+11. 每beat的estimated_words按budgetRef比例分配。各phase累计偏差≤±5%。超差→大纲无效。
+12. key_actions每条≤30字，只写主干动作。禁描写/心理/环境。
+13. sexual_milestone线性推进，禁回退。
+14. required_card_fields用点号路径（如"角色名.orgasm_pattern.during_orgasm"），禁简写。
+15. transition_to_next写具体画面。禁抽象描述。
+16. global_rules每条以"必须"或"禁止"开头，至少含：硬限禁令 | 高潮规则 | 体裁禁令。
+17. phase_writing_rule每beat必填，从叙事模块对应phase推导。不同phase的规则必须有差异，禁相同。
+18. active_characters≥3时，global_rules额外含三行：
+    必须: key_actions拆分到具体角色（如"[角色A]从后面插入"而非"插入她"）
+    必须: 高潮beat标注各角色高潮顺序
+    禁止: 任何beat只涉及部分角色——每beat须覆盖全部active_characters
 
-直接输出JSON。`;
+禁输出JSON之外内容。`;
     }
 
     function buildOptionsSystemMessage() {
@@ -941,10 +1014,10 @@
       if (state.outline?.beats) {
         const cb = state.outline.beats[state.currentBeatIndex || 0];
         if (cb) {
-          beatStr += `\n### 当前节拍（选项须推进此节拍）\n`;
+          beatStr += `\n### 当前节拍\n`;
           beatStr += `名称: ${cb.name}\n情色阶段: ${cb.erotic_phase}\n性里程碑: ${cb.sexual_milestone}\n`;
           beatStr += `关键动作: ${(cb.key_actions || []).join('; ')}\n`;
-          beatStr += `禁止跳到: ${(state.outline.beats[(state.currentBeatIndex || 0) + 1])?.name || '无下一节拍'} — 选项不得进入下一节拍。\n`;
+          beatStr += `禁跳到: ${(state.outline.beats[(state.currentBeatIndex || 0) + 1])?.name || '无'}\n`;
         }
       }
 
@@ -964,23 +1037,22 @@
       }
 
       let extra = `\n\n=== 选项生成命令 ===\n`;
-      extra += `\n【输出格式——严格限制】\n每行以"- "开头。输出3-5个选项。每选项8~15字，绝对禁止超过15字。超过15字视为无效，将直接丢弃。\n`;
+      extra += `\n【输出格式】每行"- "开头。3-5个选项。每项8-15字。⚠超15字→无效丢弃。\n`;
       extra += `\n【强制规则】\n`;
-      extra += `1. 每个选项是一个动作指令——动词开头，不含主语，不写原因，不写后果。\n`;
-      extra += `2. 禁止在选项中写入叙事描写、形容词堆砌、心理活动、环境氛围。\n`;
-      extra += `3. 禁止以对话内容作为选项（如"说'我喜欢你这样'"）——用动作概括对话意图（如"用骚话挑逗她"）。\n`;
-      extra += `4. 选项必须推进当前节拍，不得跳到下一节拍。\n`;
-      extra += `5. 选项不得违反任何角色的硬限（hard_limits）。\n`;
-      extra += `6. 选项应匹配角色的性角色定位（role）和性癖（kinks）。\n`;
-      extra += `7. 如果大纲指定了体位偏好或高潮要求，选项必须体现。\n`;
-      extra += `8. 选项应多样化：包含动作推进、对话发起、环境互动、体位切换。\n`;
-      extra += `9. 多人场景（激活角色卡≥2）时，选项须包含涉及不同角色的动作及角色间互动选项。至少2个选项指向不同角色。\n`;
-      extra += `10. 选项不是叙事描写——是给玩家选的动作简写。禁止续写故事。禁止输出任何非选项内容。\n`;
+      extra += `1. 动词开头。禁主语/原因/后果。\n`;
+      extra += `2. 禁叙事描写/形容词/心理活动/环境氛围。\n`;
+      extra += `3. 禁以对话为选项(如"说'我喜欢'")。用动作概括意图(如"用骚话挑逗她")。\n`;
+      extra += `4. 必须推进当前节拍。禁跳下一拍。\n`;
+      extra += `5. 禁违反任何角色hard_limits。\n`;
+      extra += `6. 必须匹配角色性角色(role)和性癖(kinks)。\n`;
+      extra += `7. 大纲指定的体位/高潮要求必须在选项中体现。\n`;
+      extra += `8. 必须多样化: 动作推进/对话发起/环境互动/体位切换各方向分布。\n`;
+      extra += `9. 多人(≥2角色): 选项含不同角色动作+角色间互动。≥2选项指向不同角色。\n`;
+      extra += `10. 选项=动作简写，不是叙事。禁续写故事。禁输出非选项内容。\n`;
 
       extra += `\n【格式示例（需严格遵循）】\n`;
       extra += `- 翻身骑上去，自己扭腰\n- 抓住她的头发拉近距离\n- 把她抱到窗台上\n- 在她耳边说骚话\n- 让她自己掰开给你看\n`;
 
-      // 叙事风格
       extra += `\n### 叙事风格\n${narrativeStr}`;
 
       // 大纲节拍
@@ -990,15 +1062,17 @@
       extra += cardStr;
 
       // 用户偏好（命令式）
-      extra += `\n### 用户偏好（命令）\n`;
-      extra += `故事方式: ${prefs.style} — 本选项集须匹配此风格。\n`;
-      extra += `长度下限: ${prefs.length}字以上 — 生成的选项须支持达成此字数。\n`;
-      if (prefs.scenes) extra += `偏好场景: ${prefs.scenes} — 优先生成与此场景相关的选项。\n`;
-      if (prefs.play) extra += `偏好玩法: ${prefs.play} — 至少2个选项涉及此玩法。\n`;
-      if (prefs.position) extra += `体位偏好: ${prefs.position} — 至少1个选项涉及此体位。\n`;
-      if (prefs.limits) extra += `额外限制: ${prefs.limits} — 所有选项不得违反。\n`;
-      if (prefs.orgasm !== '无要求') extra += `高潮要求: ${prefs.orgasm} — 选项应推进到此状态。\n`;
-      if (prefs.cum) extra += `射精部位偏好: ${prefs.cum} — 接近高潮时选项须导向此部位。\n`;
+      extra += `\n### 用户偏好\n`;
+      extra += `风格: ${prefs.style}。选项匹配此风格。\n`;
+      extra += `字数≥${prefs.length}。选项须支撑此量级。\n`;
+      if (prefs.scenes) extra += `场景: ${prefs.scenes}。选项必含此场景。\n`;
+      if (prefs.play) extra += `玩法: ${prefs.play}。≥2选项含此。\n`;
+      if (prefs.position) extra += `体位: ${prefs.position}。≥1选项含此。\n`;
+      if (prefs.limits) extra += `限制: ${prefs.limits}。选项禁违反。\n`;
+      if (prefs.orgasm !== '无要求') extra += `高潮: ${prefs.orgasm}。选项须推进至高潮。\n`;
+      if (prefs.cum) extra += `射精部位: ${prefs.cum}。近高潮选项导向此部位。\n`;
+      if (prefs.pace) extra += `节奏: ${prefs.pace}。慢玩→选项必含感官/环境/调情。均衡→动作/感官交替。激烈→体位切换/动作推进/高潮导向。不匹配→无效选项。\n`;
+      if (prefs.outlineLength) extra += `时长: ${prefs.outlineLength}。短篇→选项集中推高潮,禁中场休息/场景切换。长篇/史诗→允休息/二次勃起/场景切换/道具。\n`;
 
       extra += '\n只输出选项。不输出任何其他内容。';
 
@@ -1007,27 +1081,20 @@
 
 
     function buildSummarySystemMessage() {
-      return BASE_SYSTEM_PROMPT + '\n\n=== 剧情压缩指令（最高优先级） ===\n' +
-        '你将收到一段色情角色扮演的对话历史。按以下层级进行结构化压缩。\n\n' +
-        '【压缩层级——越旧越压缩】\n' +
-        '· 最近2轮对话(用户+助手共4条)：输出完整原文，标注「原文」标签。一字不改。\n' +
-        '· 次近3轮对话(6条)：每轮压缩为一段完整描写（150-300字），保留原叙事风格、句长、感官密度。禁止退化为要点列表。\n' +
-        '· 更早期对话：合并为概述性摘要，仅保留影响后续剧情的关键转折。每个关键转折一句话。\n\n' +
-        '【必须保留——每个角色逐一确认】\n' +
-        '1. 身体状态快照：穿着/裸露部位/体液位置与量/敏感部位状态（勃起/湿润/红肿）\n' +
-        '2. 空间位置：谁在谁的什么方位，谁与谁接触\n' +
-        '3. 性行为里程碑：是否已口交/手指进入/阴道插入/肛交/高潮，谁对谁做，什么部位\n' +
-        '4. 高潮记录：每个角色已高潮次数、方式、体液去向\n' +
-        '5. 关键对话：影响角色关系或剧情走向的一句原文\n' +
-        '6. 硬限相关：任何痛觉/不适/安全词/拒绝的表达——必须精确保留\n\n' +
-        '【可以丢弃】\n' +
-        '· 重复的生理反应描写（同一角色同一部位连续3段以上相似描写，只保留变化节点）\n' +
-        '· 元评论、系统提示、AI确认语句\n' +
-        '· 过渡性日常对话（非情色无关对话）\n\n' +
-        '【输出格式】\n' +
-        '按时间顺序。最近2轮用[原文]标签包裹完整原文。其余用[压缩]标签。\n' +
-        '每个角色状态快照压缩后单独一行，以角色名开头。\n' +
-        '只输出压缩内容。不输出解释、道歉、或\"我将开始压缩\"。';
+      return BASE_SYSTEM_PROMPT + '\n\n=== 剧情压缩指令【最高优先级】 ===\n' +
+        '收到对话历史后按以下层级压缩。禁输出非压缩内容。\n\n' +
+        '【层级1-最近2轮(4条)】原文完整输出。标[原文]。一字不改。禁压缩。\n' +
+        '【层级2-次近3轮(6条)】每轮压为一段(150-300字)。保留叙事风格/句长/感官密度。禁退化为要点。\n' +
+        '【层级3-更早】合并为摘要。每个关键转折一句话。丢弃非关键过渡/重复描写/日常寒暄。\n\n' +
+        '【逐角色必须保留】\n' +
+        '1.身体状态: 穿着/裸露部位/体液位置量/敏感部位状态(勃起/湿润/红肿)\n' +
+        '2.空间位置: 谁在谁方位，身体接触点\n' +
+        '3.性里程碑: 口交/手指进入/阴道插入/肛交/高潮——谁对谁，什么部位\n' +
+        '4.高潮记录: 每角色已高潮次数/方式/体液去向\n' +
+        '5.关键对话: 影响关系或剧情的一句原文\n' +
+        '6.硬限相关: 痛觉/不适/安全词/拒绝——精确保留，一字不丢\n\n' +
+        '【丢弃】重复3次以上的同角色同部位生理描写(只留变化节点) | 元评论/系统提示/AI确认 | 非情色无关对话\n\n' +
+        '【格式】按时间顺序。最近2轮→[原文]包裹。其余→[压缩]。每角色状态快照一行，角色名开头。禁解释/道歉/"我将压缩"。';
     }
 
     function buildTrainNarrativePrompt(material) {
@@ -1553,13 +1620,15 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
         }
       }
       const p = state.preferences;
-      msg += '\n=== 偏好设置 ===\n';
-      if (p.scenes) msg += `偏好场景: ${p.scenes}\n`;
-      if (p.play) msg += `偏好玩法: ${p.play}\n`;
-      if (p.position) msg += `体位偏好: ${p.position}\n`;
-      if (p.length) msg += `长度要求: ${p.length}字以上\n`;
-      if (p.orgasm !== '无要求') msg += `高潮要求: ${p.orgasm}\n`;
-      msg += '\n请生成 JSON 格式的结构化大纲。';
+      msg += '\n=== 偏好设置【违规则大纲无效】 ===\n';
+      if (p.scenes) msg += `场景: ${p.scenes}。核心场景必须含此。\n`;
+      if (p.play) msg += `玩法: ${p.play}。≥1 beat必须体现。\n`;
+      if (p.position) msg += `体位: ${p.position}。性行为beat必须引用。\n`;
+      if (p.length) msg += `总字数≥${p.length}。beats=ceil(总字数/3000)。\n`;
+      if (p.orgasm !== '无要求') msg += `高潮: ${p.orgasm}。erotic_phase必须安排对应里程碑。\n`;
+      if (p.pace) msg += `节奏: ${p.pace}。逐条遵循系统消息"节奏偏好"→${p.pace}模式参数。禁逾越。\n`;
+      if (p.outlineLength) msg += `大纲时长: ${p.outlineLength}。beats/高潮/体位/字数必须落在系统消息"大纲时长"→${p.outlineLength}区间。出界=大纲无效。\n`;
+      msg += '\n禁输出JSON之外内容。';
       return msg;
     }
 
@@ -1927,14 +1996,16 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
     function buildPreferenceText() {
       const p = state.preferences;
       let t = '';
-      if (p.style) t += `故事方式: ${p.style} — 大纲须匹配此叙事节奏。\n`;
-      if (p.length) t += `长度限制: >=${p.length}字 — 节拍数 = ceil(总字数/3000)。\n`;
-      if (p.scenes) t += `场景: ${p.scenes} — 大纲核心场景必须包含此场景，并作为节拍中的 location_ref。\n`;
-      if (p.play) t += `玩法: ${p.play} — 大纲须在至少1个节拍的 key_actions 中体现此玩法。\n`;
-      if (p.position) t += `体位: ${p.position} — 大纲须在性行为节拍的 required_world_entries 中引用体位条目。\n`;
-      if (p.limits) t += `限制: ${p.limits} — 所有节拍不得出现此内容。写入 global_rules。\n`;
-      if (p.orgasm !== '无要求') t += `高潮: ${p.orgasm} — 大纲须在 erotic_phase 中安排对应的里程碑。\n`;
-      if (p.cum) t += `射精部位: ${p.cum} — 大纲在含内射/颜射的节拍中标注此部位为 sexual_milestone。\n`;
+      if (p.style) t += `故事方式: ${p.style}。大纲匹配此节奏。\n`;
+      if (p.length) t += `长度≥${p.length}字。beats=ceil(总字数/3000)。\n`;
+      if (p.scenes) t += `场景: ${p.scenes}。核心场景含此，作location_ref。\n`;
+      if (p.play) t += `玩法: ${p.play}。≥1 beat的key_actions体现。\n`;
+      if (p.position) t += `体位: ${p.position}。性行为beat的required_world_entries引用。\n`;
+      if (p.limits) t += `限制: ${p.limits}。所有beat禁出现。写入global_rules。\n`;
+      if (p.orgasm !== '无要求') t += `高潮: ${p.orgasm}。erotic_phase安排里程碑。\n`;
+      if (p.cum) t += `射精部位: ${p.cum}。含射精beat标为sexual_milestone。\n`;
+      if (p.pace) t += `节奏: ${p.pace}。按"节奏偏好"→${p.pace}模式参数执行。违反→大纲无效。\n`;
+      if (p.outlineLength) t += `大纲时长: ${p.outlineLength}。落在"大纲时长"→${p.outlineLength}区间(beats/高潮/体位/字数)。出界→大纲无效。\n`;
       return t;
     }
 
@@ -2094,6 +2165,8 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
       document.getElementById('prefLimits').value = state.preferences.limits || '';
       document.getElementById('prefOrgasm').value = state.preferences.orgasm || '无要求';
       document.getElementById('prefCum').value = state.preferences.cum || '';
+      document.getElementById('prefPace').value = state.preferences.pace || '均衡';
+      document.getElementById('prefOutlineLength').value = state.preferences.outlineLength || '中篇';
       const rawOutline = state.outline;
       document.getElementById('outlineEditor').value = (typeof rawOutline === 'object' && rawOutline !== null)
         ? JSON.stringify(rawOutline, null, 2)
@@ -2583,7 +2656,7 @@ document.getElementById('customInput').addEventListener('keydown', (e) => {  // 
         } catch(e) { hideLoading(); toast('训练失败: '+e.message); }
       });
 
-      ['prefStyle','prefLength','prefScenes','prefPlay','prefPosition','prefLimits','prefOrgasm','prefCum'].forEach(id => {
+      ['prefStyle','prefLength','prefScenes','prefPlay','prefPosition','prefLimits','prefOrgasm','prefCum','prefPace','prefOutlineLength'].forEach(id => {
     let saveTimer = null;
     const savePrefsDebounced = () => {
         clearTimeout(saveTimer);
@@ -2596,6 +2669,8 @@ document.getElementById('customInput').addEventListener('keydown', (e) => {  // 
             state.preferences.limits = document.getElementById('prefLimits').value.trim();
             state.preferences.orgasm = document.getElementById('prefOrgasm').value;
             state.preferences.cum = document.getElementById('prefCum').value.trim();
+            state.preferences.pace = document.getElementById('prefPace').value;
+            state.preferences.outlineLength = document.getElementById('prefOutlineLength').value;
             saveState();
         }, 300);
     };
