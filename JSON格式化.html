@@ -1,57 +1,72 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>JSON 修复格式化工具</title>
 <style>
-:root{--bg:#0f0f0f;--surface:#1a1a1a;--border:#2a2a2a;--text:#e0e0e0;--muted:#888;--accent:#7a5cf0;--green:#27ae60;--red:#e74c3c;--yellow:#f39c12}
+:root{--bg:#0f0f14;--surface:#1a1a24;--border:#2a2a3a;--text:#d4d4e8;--muted:#8888aa;--accent:#a78bfa;--green:#4ade80;--red:#f87171;--yellow:#fbbf24;--orange:#fb923c}
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,sans-serif;padding:16px;max-width:960px;margin:0 auto}
+body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,sans-serif;padding:16px;max-width:1024px;margin:0 auto}
 h1{font-size:18px;color:var(--accent);margin-bottom:2px}
-.sub{font-size:11px;color:var(--muted);margin-bottom:14px}
-.dropzone{border:2px dashed var(--border);border-radius:14px;padding:36px 20px;text-align:center;cursor:pointer;margin-bottom:12px;transition:.2s}
-.dropzone:hover,.dropzone.drag{border-color:var(--accent);background:#1a1a2e}
+.sub{font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.5}
+.dropzone{border:2px dashed var(--border);border-radius:14px;padding:40px 20px;text-align:center;cursor:pointer;margin-bottom:12px;transition:.2s;position:relative}
+.dropzone:hover,.dropzone.drag{border-color:var(--accent);background:#1a1a30}
 .dropzone input{display:none}
-.dropzone .icon{font-size:36px;margin-bottom:6px}
-.dropzone .label{font-size:14px;color:var(--text)}
-.dropzone .hint{font-size:11px;color:var(--muted);margin-top:4px}
-.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.dropzone .icon{font-size:40px;margin-bottom:6px}
+.dropzone .label{font-size:15px;color:var(--text);font-weight:600}
+.dropzone .hint{font-size:12px;color:var(--muted);margin-top:4px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
 .bar .fileinfo{font-size:12px;color:var(--muted);flex:1}
-.tag{display:inline-block;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:600}
-.tag-ok{background:#1a3a1a;color:var(--green)}
-.tag-err{background:#3a1a1a;color:var(--red)}
+.tag{display:inline-block;padding:4px 12px;border-radius:12px;font-size:11px;font-weight:600}
+.tag-ok{background:#14532d;color:var(--green)}
+.tag-err{background:#451a1a;color:var(--red)}
 .tag-fix{background:#3a2a1a;color:var(--yellow)}
+.tag-info{background:#1a2a3a;color:#60a5fa}
 .panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:10px}
-.panel-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px;color:var(--muted)}
-.panel-body{padding:12px 14px}
-pre{background:#0a0a0a;border-radius:6px;padding:12px;font-size:12px;line-height:1.45;overflow:auto;max-height:500px;white-space:pre;font-family:'SF Mono','Fira Code','Cascadia Code',monospace}
+.panel-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px;color:var(--muted);font-weight:600}
+pre{background:#0a0a10;border-radius:6px;padding:12px;font-size:12px;line-height:1.5;overflow:auto;max-height:500px;white-space:pre;font-family:'SF Mono','Fira Code','Cascadia Code',monospace;tab-size:2}
 pre .lr{display:flex}
-pre .lr.err{background:#3a1a1a}
+pre .lr.err{background:#3a1a20}
 pre .lr.fix{background:#2a2a1a}
-pre .ln{color:#444;display:inline-block;width:40px;text-align:right;margin-right:10px;user-select:none;flex-shrink:0}
+pre .lr.hl{background:#2a2a30}
+pre .ln{color:#555;display:inline-block;width:48px;text-align:right;margin-right:12px;user-select:none;flex-shrink:0}
 pre .ct{color:var(--green)}
-pre .cd{color:var(--red);text-decoration:line-through}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:10px 18px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;border:none;transition:.15s}
+pre .cd{color:var(--red)}
+pre .cw{color:var(--yellow)}
+pre .ce{background:#7f1d1d;color:#fff;border-radius:2px;padding:0 1px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:10px 18px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;border:none;transition:.15s;color:#fff}
 .btn:active{transform:scale(.97)}
-.btn-accent{background:var(--accent);color:#fff}
-.btn-green{background:var(--green);color:#fff}
+.btn-accent{background:var(--accent)}
+.btn-green{background:#166534;border:1px solid var(--green)}
 .btn-outline{background:transparent;border:1px solid var(--border);color:var(--text)}
 .btn-outline:hover{border-color:var(--accent)}
 .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.btn-sm{padding:5px 12px;font-size:11px}
 .spin{display:inline-block;width:14px;height:14px;border:2px solid #333;border-top-color:var(--accent);border-radius:50%;animation:sp .6s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:8px 20px;border-radius:20px;font-size:13px;z-index:9999;pointer-events:none}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:8px 20px;border-radius:20px;font-size:13px;z-index:9999;pointer-events:none}
+.muted{color:var(--muted)}
+.errbox{background:#3a1a1a;border:1px solid var(--red);border-radius:8px;padding:12px 14px;margin-bottom:10px;font-size:12px;font-family:'SF Mono',monospace;white-space:pre-wrap;word-break:break-all;line-height:1.6}
+.errbox .pos{color:var(--yellow);font-weight:600}
+.patch-row{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px}
+.patch-row textarea{flex:2;background:#0a0a10;border:1px solid var(--border);border-radius:6px;padding:10px;font-size:12px;font-family:'SF Mono',monospace;color:var(--text);resize:vertical;min-height:60px;line-height:1.5}
+.patch-row textarea:focus{border-color:var(--accent);outline:none}
+.patch-label{flex:0 0 60px;font-size:11px;color:var(--muted);padding-top:10px}
 </style>
 </head>
 <body>
 
-<h1>🛠 JSON 修复 & 格式化</h1>
-<div class="sub">自动修复尾随逗号·缺引号键名·单引号·注释 ｜ jsdelivr CDN · UMD · UTF-8 Blob</div>
+<h1>🛠 JSON 修复格式化工具</h1>
+<div class="sub">
+  CDN: <code>jsonrepair@3.14.0</code> · 自动修复尾随逗号/单引号/注释<br>
+  同时显示原始语法错误位置，辅助手动定位
+</div>
 
 <div class="dropzone" id="dz">
   <input type="file" id="fi" accept=".json,.jsonc,.json5,.txt">
   <div class="icon">📁</div>
   <div class="label">拖拽 JSON 文件到此处 或 点击选择</div>
-  <div class="hint">支持 .json / .jsonc / .json5 ｜ 输出 UTF-8</div>
+  <div class="hint">支持 .json / .jsonc / .json5 · 输出 UTF-8</div>
 </div>
 
 <div class="bar" id="bar" style="display:none">
@@ -60,18 +75,27 @@ pre .cd{color:var(--red);text-decoration:line-through}
 </div>
 
 <div id="main" style="display:none">
+
+  <!-- 原始错误信息 -->
+  <div class="errbox" id="errBox" style="display:none">
+    <div><span class="tag tag-err">❌ 原始语法错误</span> <span id="errMsg" style="margin-left:8px"></span></div>
+    <div id="errContext" style="margin-top:8px;color:var(--muted)"></div>
+  </div>
+
+  <!-- 修复差异 -->
   <div class="panel" id="diffPanel" style="display:none">
     <div class="panel-header"><span>📐 修复差异</span><span class="muted" id="diffCount"></span></div>
     <pre id="diffView"></pre>
   </div>
 
+  <!-- 修复后 JSON -->
   <div class="panel">
     <div class="panel-header">
       <span>📝 修复后 JSON</span>
       <span style="font-size:11px">
-        <button class="btn btn-outline" id="btnPretty" style="padding:5px 10px;font-size:11px">🎨 格式化</button>
-        <button class="btn btn-outline" id="btnMinify" style="padding:5px 10px;font-size:11px">📦 压缩</button>
-        <button class="btn btn-outline" id="btnRaw" style="padding:5px 10px;font-size:11px">🔤 原始</button>
+        <button class="btn btn-outline btn-sm" id="btnPretty">🎨 格式化</button>
+        <button class="btn btn-outline btn-sm" id="btnMinify">📦 压缩</button>
+        <button class="btn btn-outline btn-sm" id="btnRaw">🔤 原始修复输出</button>
       </span>
     </div>
     <pre id="codeView"></pre>
@@ -79,48 +103,42 @@ pre .cd{color:var(--red);text-decoration:line-through}
 
   <div class="btn-row">
     <button class="btn btn-accent" id="btnCopy">📋 复制全部</button>
-    <button class="btn btn-green" id="btnDl">⬇ 下载 UTF-8</button>
+    <button class="btn btn-green" id="btnDl">⬇ 下载 .json</button>
     <button class="btn btn-outline" id="btnRecheck">🔄 验证</button>
   </div>
 </div>
 
 <script>
 (function(){
-// ======= 加载 jsonrepair UMD =======
-var _jsonrepair=null;
+'use strict';
 
-(function loadLib(){
-  var CDNS=[
-    'https://cdn.jsdelivr.net/npm/jsonrepair@3.14.0/lib/umd/jsonrepair.min.js',
-    'https://unpkg.com/jsonrepair@3.14.0/lib/umd/jsonrepair.min.js'
-  ];
-  var idx=0;
-  function tryNext(){
-    if(idx>=CDNS.length){
-      console.error('所有CDN加载失败');
-      document.getElementById('statTag')&&(document.getElementById('statTag').innerHTML='<span class="tag tag-err">❌ jsonrepair CDN加载失败，请刷新</span>');
-      return;
-    }
-    var s=document.createElement('script');
-    s.src=CDNS[idx];
-    s.onload=function(){
-      // 探测导出
-      var w=window;
-      if(typeof w.JSONRepair==='function')_jsonrepair=w.JSONRepair;
-      else if(w.JSONRepair){
-        if(typeof w.JSONRepair.jsonrepair==='function')_jsonrepair=w.JSONRepair.jsonrepair;
-        else if(typeof w.JSONRepair.default==='function')_jsonrepair=w.JSONRepair.default;
-        else{var ks=Object.keys(w.JSONRepair);for(var i=0;i<ks.length;i++){if(typeof w.JSONRepair[ks[i]]==='function'){_jsonrepair=w.JSONRepair[ks[i]];break}}}
-      }
-      console.log('jsonrepair loaded:',typeof _jsonrepair);
-    };
-    s.onerror=function(){idx++;tryNext()};
-    document.head.appendChild(s);
-  }
-  tryNext();
-})();
+// ========== jsonrepair: 自己加载，不用探测黑魔法 ==========
+var _repair=null;
+function loadRepair(cb){
+  if(_repair) return cb(_repair);
+  var s=document.createElement('script');
+  s.src='https://cdn.jsdelivr.net/npm/jsonrepair@3.14.0/lib/umd/jsonrepair.min.js';
+  s.onload=function(){
+    // jsonrepair@3.x UMD 导出为 JSONRepair
+    var w=window;
+    _repair=(w.JSONRepair&&w.JSONRepair.jsonrepair)||w.JSONRepair||w.jsonrepair||null;
+    if(typeof _repair!=='function'){
+      // 后备：尝试 unpkg
+      var s2=document.createElement('script');
+      s2.src='https://unpkg.com/jsonrepair@3.14.0/lib/umd/jsonrepair.min.js';
+      s2.onload=function(){
+        _repair=(w.JSONRepair&&w.JSONRepair.jsonrepair)||w.JSONRepair||w.jsonrepair||null;
+        cb(_repair);
+      };
+      s2.onerror=function(){cb(null)};
+      document.head.appendChild(s2);
+    }else{cb(_repair)}
+  };
+  s.onerror=function(){cb(null)};
+  document.head.appendChild(s);
+}
 
-// ======= DOM =======
+// ========== DOM ==========
 var $=function(s){return document.getElementById(s)};
 var dz=$('dz'),fi=$('fi'),bar=$('bar'),main=$('main');
 
@@ -134,83 +152,142 @@ dz.addEventListener('click',function(){fi.click()});
 dz.addEventListener('drop',function(e){var f=e.dataTransfer.files[0];if(f)process(f)});
 fi.addEventListener('change',function(e){var f=e.target.files[0];if(f)process(f)});
 
-var _orig='',_fixed='',_parsed=null;
+var _orig='',_fixed='',_parsed=null,_parseErr=null;
 
 function process(file){
   var reader=new FileReader();
   reader.onload=function(ev){
     _orig=ev.target.result;
+    _parseErr=null;
     bar.style.display='flex';
     $('finfo').textContent='📄 '+file.name+' | '+(file.size/1024).toFixed(1)+'KB | '+_orig.split('\n').length+'行';
     main.style.display='block';
 
-    // 先直接parse
+    // 先试直接 parse
     var directOk=false;
-    try{_parsed=JSON.parse(_orig);directOk=true}catch(e){}
+    try{_parsed=JSON.parse(_orig);directOk=true}catch(e){_parseErr=e}
 
     if(directOk){
       $('statTag').innerHTML='<span class="tag tag-ok">✅ 原本有效</span>';
       _fixed=_orig;
+      $('errBox').style.display='none';
       $('diffPanel').style.display='none';
       renderCode(JSON.stringify(_parsed,null,2));
       bindButtons();
       return;
     }
 
-    if(!_jsonrepair){
-      $('statTag').innerHTML='<span class="tag tag-err">❌ jsonrepair 未就绪，请刷新重试</span>';
-      return;
-    }
+    // 显示原始错误
+    showParseError(_parseErr);
 
-    $('statTag').innerHTML='<span class="tag tag-fix"><span class="spin"></span> 修复中…</span>';
-
-    setTimeout(function(){
-      var repaired;
-      try{repaired=_jsonrepair(_orig)}catch(e){repaired=_orig}
-
-      var valid=false;
-      try{_parsed=JSON.parse(repaired);valid=true}catch(e){
-        // 二次修复
-        try{repaired=_jsonrepair(repaired);_parsed=JSON.parse(repaired);valid=true}catch(e2){}
+    // 加载修复库
+    loadRepair(function(repairFn){
+      if(!repairFn){
+        $('statTag').innerHTML='<span class="tag tag-err">❌ jsonrepair 加载失败</span>';
+        return;
       }
 
-      _fixed=repaired;
-      var changed=repaired!==_orig;
+      $('statTag').innerHTML='<span class="tag tag-fix"><span class="spin"></span> 修复中…</span>';
 
-      $('statTag').innerHTML=valid
-        ?'<span class="tag tag-ok">✅ 修复成功</span>'+(changed?' <span class="tag tag-fix">已修改</span>':'')
-        :'<span class="tag tag-err">⚠ 仍有错误</span>';
+      setTimeout(function(){
+        var repaired;
+        try{repaired=repairFn(_orig)}catch(e){repaired=_orig}
 
-      if(changed){
-        showDiff(_orig,repaired);
-      }else{
-        $('diffPanel').style.display='none';
-      }
+        var valid=false;
+        try{_parsed=JSON.parse(repaired);valid=true}catch(e){
+          try{repaired=repairFn(repaired);_parsed=JSON.parse(repaired);valid=true}catch(e2){}
+        }
 
-      renderCode(valid?JSON.stringify(_parsed,null,2):repaired);
-      bindButtons();
-    },60);
+        _fixed=repaired;
+        var changed=repaired!==_orig;
+
+        $('statTag').innerHTML=valid
+          ?'<span class="tag tag-ok">✅ 修复成功</span>'+(changed?' <span class="tag tag-fix">已修改</span>':'')
+          :'<span class="tag tag-err">⚠ 仍有错误 · 请根据上方错误位置手动修复</span>';
+
+        if(changed){showDiff(_orig,repaired)}
+        else{$('diffPanel').style.display='none'}
+
+        renderCode(valid?JSON.stringify(_parsed,null,2):repaired);
+        bindButtons();
+      },80);
+    });
   };
   reader.readAsText(file,'UTF-8');
 }
 
+// ========== 显示原始解析错误：位置 + 前后文 ==========
+function showParseError(err){
+  $('errBox').style.display='block';
+  var msg=err.message;
+  $('errMsg').textContent=msg;
+
+  // 从错误消息提取位置
+  var pos=null;
+  var m=msg.match(/position\s*(\d+)/i);
+  if(m) pos=parseInt(m[1]);
+
+  if(pos!==null){
+    var ctxStart=Math.max(0,pos-120);
+    var ctxEnd=Math.min(_orig.length,pos+120);
+    var before=_orig.slice(ctxStart,pos);
+    var bad=_orig.slice(pos,pos+1);
+    var after=_orig.slice(pos+1,ctxEnd);
+
+    // 计算行列号
+    var lines=_orig.slice(0,pos).split('\n');
+    var ln=lines.length;
+    var col=lines[lines.length-1].length+1;
+
+    var html='<span class="pos">行'+ln+' 列'+col+'（字节位置 '+pos.toLocaleString()+'）</span>\n';
+    html+='<span style="color:var(--muted)">…</span>'+esc(before.slice(-80));
+    html+='<span class="ce">'+esc(bad||'(此处)')+'</span>';
+    html+=esc(after.slice(0,80))+'<span style="color:var(--muted)">…</span>';
+    $('errContext').innerHTML=html;
+  }else{
+    $('errContext').textContent='（无法定位错误位置）';
+  }
+}
+
+// ========== 逐字符 diff（不是逐行）==========
 function showDiff(orig,repair){
   $('diffPanel').style.display='block';
-  var ol=orig.split('\n'),rl=repair.split('\n');
-  var diffs=[],i=0,j=0;
-  while(i<ol.length||j<rl.length){
-    if(i>=ol.length){diffs.push({t:'+',n:rl[j]});j++;continue}
-    if(j>=rl.length){diffs.push({t:'-',o:ol[i]});i++;continue}
-    if(ol[i]===rl[j]){i++;j++;continue}
-    diffs.push({t:'~',o:ol[i],n:rl[j]});i++;j++;
+
+  // 找不同
+  var patches=[];
+  var i=0;
+  while(i<orig.length&&i<repair.length){
+    if(orig[i]!==repair[i]){
+      var start=i;
+      while(i<orig.length&&i<repair.length&&orig[i]!==repair[i])i++;
+      patches.push({start:start,end:i});
+    }else{i++}
   }
-  $('diffCount').textContent=diffs.length+'处差异';
+  if(i<repair.length) patches.push({start:i,end:repair.length});
+  else if(i<orig.length) patches.push({start:i,end:orig.length,del:true});
+
+  $('diffCount').textContent=patches.length+'处修改';
+
+  // 只显示前30处
   var h='';
-  diffs.slice(0,50).forEach(function(d,idx){
-    if(d.t==='+')h+='<div class="lr fix"><span class="ln">'+(idx+1)+'</span><span class="ct">'+esc(d.n)+'</span></div>';
-    else if(d.t==='-')h+='<div class="lr err"><span class="ln">'+(idx+1)+'</span><span class="cd">'+esc(d.o)+'</span></div>';
-    else h+='<div class="lr fix"><span class="ln">'+(idx+1)+'</span><span class="cd">'+esc(d.o)+'</span> → <span class="ct">'+esc(d.n)+'</span></div>';
+  patches.slice(0,30).forEach(function(p,idx){
+    var ctx=30;
+    var s=Math.max(0,p.start-ctx);
+    var e=Math.min(repair.length,p.end+ctx);
+    var bg=idx%2===0?'line-fix':'line-fix-alt';
+
+    var before=esc(repair.slice(s,p.start));
+    var changed=esc(repair.slice(p.start,p.end));
+    var after=esc(repair.slice(p.end,e));
+
+    h+='<div class="lr fix"><span class="ln">'+(idx+1)+'</span>';
+    if(s>0) h+='<span class="cw">…</span>';
+    h+=before+'<span class="ct">'+changed+'</span>'+after;
+    if(e<repair.length) h+='<span class="cw">…</span>';
+    h+='</div>';
   });
+  if(patches.length>30) h+='<div class="lr"><span class="ln"></span><span class="muted">... 还有 '+(patches.length-30)+' 处修改，已省略</span></div>';
+
   $('diffView').innerHTML=h||'<span class="muted">无差异</span>';
 }
 
@@ -223,48 +300,27 @@ function renderCode(text){
 
 function bindButtons(){
   $('btnPretty').onclick=function(){
-    try{
-      // 用 _fixed 先 parse 再格式化
-      var p=JSON.parse(_fixed);
-      var pretty=JSON.stringify(p,null,2);
-      _fixed=pretty;
-      renderCode(pretty);
-    }catch(e){toast('⚠ 无法格式化：'+e.message)}
+    try{var p=JSON.parse(_fixed);_fixed=JSON.stringify(p,null,2);renderCode(_fixed)}catch(e){toast('⚠ '+e.message)}
   };
   $('btnMinify').onclick=function(){
-    try{
-      var p=JSON.parse(_fixed);
-      var min=JSON.stringify(p);
-      _fixed=min;
-      renderCode(min);
-    }catch(e){toast('⚠ 无法压缩：'+e.message)}
+    try{var p=JSON.parse(_fixed);_fixed=JSON.stringify(p);renderCode(_fixed)}catch(e){toast('⚠ '+e.message)}
   };
   $('btnRaw').onclick=function(){
-    // 展示修复后的原始字符串（非格式化）
     renderCode(_fixed);
   };
   $('btnCopy').onclick=function(){
-    // 从 pre 取文本
-    var text=_fixed;
-    navigator.clipboard.writeText(text).then(function(){toast('✅ 已复制')}).catch(function(){
-      toast('请长按代码区全选复制');
-    });
+    navigator.clipboard.writeText(_fixed).then(function(){toast('✅ 已复制')}).catch(function(){toast('请手动选择复制')});
   };
   $('btnDl').onclick=function(){
-    // Blob + UTF-8 显式指定
-    var blob=new Blob([_fixed],{type:'application/json;charset=utf-8'});
-    var url=URL.createObjectURL(blob);
+    // Data URL: base64 编码 UTF-8，杜绝乱码
+    var b64=btoa(unescape(encodeURIComponent(_fixed)));
     var a=document.createElement('a');
-    a.href=url;
+    a.href='data:application/json;base64,'+b64;
     a.download='fixed.json';
     document.body.appendChild(a);
     a.click();
-    // 延长释放
-    setTimeout(function(){
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    },60000); // 60秒足够下载
-    toast('⬇ 下载中…');
+    document.body.removeChild(a);
+    toast('⬇ 已下载 fixed.json');
   };
   $('btnRecheck').onclick=function(){
     try{JSON.parse(_fixed);toast('✅ JSON 有效')}catch(e){toast('❌ '+e.message)}
@@ -273,15 +329,18 @@ function bindButtons(){
 
 function toast(msg){
   var t=document.createElement('div');
-  t.className='toast';
-  t.textContent=msg;
+  t.className='toast';t.textContent=msg;
   document.body.appendChild(t);
-  setTimeout(function(){t.remove()},2000);
+  setTimeout(function(){t.remove()},2200);
 }
 
 function esc(s){
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+
+// 预加载修复库
+loadRepair(function(){console.log('jsonrepair ready:',!!_repair)});
+
 })();
 </script>
 </body>
