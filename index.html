@@ -10,6 +10,9 @@
     html,body { height:100%; background:#0b0b0b; color:#f0f0f0; font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',sans-serif; font-size:16px; line-height:1.6; overflow:hidden; user-select:none; -webkit-tap-highlight-color:transparent; -webkit-overflow-scrolling:touch; }
     ::-webkit-scrollbar { width:4px; background:#1a1a1a; }
     ::-webkit-scrollbar-thumb { background:#444; border-radius:4px; }
+    #optionsContainer::-webkit-scrollbar { width:5px; background:transparent; }
+    #optionsContainer::-webkit-scrollbar-thumb { background:#555; border-radius:3px; }
+    #optionsContainer::-webkit-scrollbar-thumb:hover { background:#777; }
     input,textarea,select,button { font-family:inherit; font-size:16px; background:#1a1a1a; color:#f0f0f0; border:1px solid #333; border-radius:6px; padding:12px 16px; outline:none; transition:border 0.15s; }
     input:focus,textarea:focus,select:focus { border-color:#7a5cf0; }
     button { cursor:pointer; background:#2a2a2a; border:1px solid #444; font-weight:500; padding:10px 20px; }
@@ -50,8 +53,8 @@
     .story-msg { padding:10px 12px; margin-bottom:8px; border-radius:8px; background:#121212; border-left:3px solid #7a5cf0; position:relative; word-wrap:break-word; white-space:pre-wrap; }
     .story-msg .msg-role { font-size:12px; color:#7a5cf0; font-weight:500; margin-bottom:4px; }
     .story-msg .msg-content { font-size:15px; color:#f0f0f0; }
-    #mainBottomBar { flex-shrink:0; background:#0f0f0f; border-top:1px solid #1f1f1f; padding:8px 12px 12px; max-height:45vh; display:flex; flex-direction:column; }
-    #optionsContainer { display:flex; flex-wrap:wrap; gap:8px; overflow-y:auto; padding:4px 0 8px; max-height:30vh; }
+    #mainBottomBar { flex-shrink:0; background:#0f0f0f; border-top:1px solid #1f1f1f; padding:8px 12px 12px; display:flex; flex-direction:column; }
+    #optionsContainer { display:flex; flex-direction:column; gap:8px; overflow-y:auto; padding:4px 4px 8px 0; max-height:180px; }
     .opt-btn { background:#1a1a1a; border:1px solid #2a2a2a; border-radius:20px; padding:12px 22px; font-size:15px; color:#ddd; cursor:pointer; white-space:normal; word-break:break-word; text-align:left; min-height:44px; }
     .opt-btn:hover { background:#2a2a2a; border-color:#7a5cf0; color:#fff; }
     #customInputArea { display:flex; gap:8px; align-items:center; padding-top:6px; border-top:1px solid #1a1a1a; flex-shrink:0; }
@@ -528,35 +531,35 @@
     const DEFAULT_NARRATIVE_MODULE = {
       author_persona: {
         style: "叙述体与对话体混合",
-        tone: "直白情色。感官冲击密集。画面感强于散文感。读完像看了一部高清影片。",
-        strengths: ["具体生理描写", "动作驱动叙事", "感官堆叠", "长短句节奏控制"],
-        sentence_style: "混合派——快速段落用短句三到五字，慢镜头用长句铺展细节",
-        specialty: "硬核情色写手。写身体直接——不写'她很兴奋'，写乳头挺立的精确直径和颜色变化。写动作精确——每一下的力度、角度、速度落在实处。写声音句句带响。"
+        tone: "直白官能。不遮掩、不文艺、不绕弯。身体什么感觉就写什么感觉。读起来像在耳边喘。",
+        strengths: ["身体快感描写", "动作驱动叙事", "感官堆叠", "长短句节奏控制"],
+        sentence_style: "混合派——快速段落用短句三到五字砸下来，慢镜头用长句让读者喘不上气",
+        specialty: "硬核官能写手。写身体不客气——乳头硬成什么样、湿成什么样就写什么样。写动作不收敛——每一下怎么顶、怎么磨、怎么让人受不了就怎么写。写声音不克制——叫出来、哭出来、憋不住。"
       },
       erotic_pacing: {
         foreplay_phase: {
           word_budget_ratio: "30%",
-          style: "长句铺氛围。触觉优先——写体温、皮肤纹理、呼吸的节奏变化、衣物摩擦声。嗅觉写体味和香水。对话以试探和挑逗为主。不直接写性器官——写接近的过程。每段覆盖触觉+嗅觉或触觉+听觉。",
-          example_sentence: "她靠得很近，呼吸里的热度先喷在他脖子上然后才听到她开口。衬衫的布料在她弯腰时轻轻蹭过他的前臂。"
+          style: "长句铺氛围，但每段至少一处直接的身体反应。触觉优先——写体温升高、皮肤发烫、呼吸变重变急、衣服摩擦时乳头在布料底下硬起来。嗅觉写体味混着微汗。对话以试探和挑逗为主。不直接写性器官——写接近的过程、写越来越受不了的焦躁感。每段覆盖触觉+嗅觉或触觉+听觉。",
+          example_sentence: "她靠得很近，呼吸的热气先喷到他脖子上，然后才听到她开口。衬衫在她弯腰时蹭过他的前臂——他能感觉到布料底下她乳尖已经硬了，隔着两层衣服还是硌得清清楚楚。"
         },
         insertion_early: {
           word_budget_ratio: "25%",
-          style: "中等句长。动作与身体反应严格交替——每写一个插入动作立即跟一个生理反应（收缩/湿润/体温变化）。触觉为主——写紧度、湿度、热度。对话开始缩短变迫切。引入内部感受——被撑开/被填满/被包裹。",
-          example_sentence: "她进去了。阴道内壁一层一层地让开，又一层一层地贴回来——湿热得像被含住。她吸了一口气，腰不自觉往下沉。"
+          style: "中等句长。动作与快感反应严格交替——每写一个插入动作立即跟一个身体的回应（里面怎么绞、怎么湿、怎么发烫）。触觉为主——写紧度裹得多狠、湿到什么程度滑溜溜、热度像含着一团火。对话开始变短变急。写内部感受——被撑开时的饱胀、被填满时的酸麻、被顶到深处的软。",
+          example_sentence: "她进去了。小穴内壁一层一层地让开，又一层一层地贴回来——湿热得像被含住。她吸了一口气，腰不自觉往下沉。"
         },
         buildup_phase: {
           word_budget_ratio: "25%",
-          style: "句子缩短。每个动作紧跟一个生理反应。触觉和听觉并重——写抽送的水声、皮肤撞击声、呼吸的破碎速度。内部感受加深——G点被顶到的位置感、压力积累的轨迹、收缩频率的加快。心理活动不超过10%——用抓紧床单替代'她好爽'。",
+          style: "句子缩短。每个动作紧跟一个快感反应。触觉和听觉并重——写抽送时咕叽的水声、小腹撞屁股的啪啪响、喘气破碎的节奏。内部感受深入——深处被反复碾磨的酸胀堆积、快感像水一样越积越满、子宫口每被撞一下的酥麻。心理活动不超过10%——用抓紧床单、脚趾蜷起来、眼泪飙出来代替'好爽'。",
           example_sentence: "他顶到了。她腰猛挺。肉壁绞紧。呻吟断成两截。"
         },
         climax_phase: {
           word_budget_ratio: "15%",
-          style: "短句轰炸。一句一个画面。禁止心理活动——全部是身体。禁止完整对话——只有破碎的单音节和呻吟符号♡。触觉+听觉+内部感受三感并行。写痉挛的频率、射精的搏动次数、阴道收缩的持续时间、喷出液体的温度和量。最后一句写崩溃的瞬间。",
-          example_sentence: "她弓起腰。嘴张到最大。没声音——然后尖叫撕开了喉咙。阴道绞紧。一下。两下。三下。喷出来。"
+          style: "短句轰炸。一句一个画面一记重击。禁止心理活动——全部是失控的身体。禁止完整对话——只有破碎的哭叫和呻吟符号♡。触觉+听觉+内部感受三感并行。写高潮来临时的崩溃：小穴疯狂抽搐绞紧的节奏、精液一股一股灌进来的势头、深处被烫到的感觉、涌出来的白浊多得顺着大腿流。写人彻底坏掉的样子——翻白眼、失声、身体弓起来放不下去。最后一句收在崩溃的余波。",
+          example_sentence: "她弓起腰。嘴张到最大。没声音——然后尖叫撕开了喉咙。小穴绞紧。一下。两下。三下。喷出来。"
         },
         afterglow_phase: {
           word_budget_ratio: "5%",
-          style: "恢复长句。写呼吸的缓慢平复、身体的细微颤抖、体液的温度变化和缓慢流出、皮肤的潮红消退。对话恢复但声音沙哑。最后一句写两人身体的接触面——还嵌在一起的那部分。不急着拔出——余韵长度不少于50字。",
+          style: "恢复长句。写呼吸还在抖、身体时不时抽一下、精液从里面缓慢往外淌的黏腻触感、腿间一片狼藉的湿凉。皮肤高潮后的潮红和薄汗。对话恢复但声音哑了。最后一句写还嵌着的那部分——没拔出来，还在里面，还是热的。不急着分开——余韵长度不少于50字。",
           example_sentence: "呼吸还在发抖。她的腿从他腰上滑下来，内侧一片湿凉。精液从她里面缓慢地往外渗，沿着臀缝淌到床单上。她还嵌在他身上——那部分还是热的。"
         }
       },
@@ -588,21 +591,21 @@
         group_sounds: ["此起彼伏","交叠","重叠","混在一起","分不清是谁的"]
       },
       sensory_priority: ["触觉", "听觉", "内部感受", "视觉", "嗅觉"],
-      dialogue_integration: "对话嵌入动作中不独立成段。呻吟用♡标注。叫床话短促破碎脏。高潮时对话退化为单音节。只有余韵期恢复简短完整对话。",
+      dialogue_integration: "对话嵌入动作中不独立成段。呻吟用♡标注。叫床话短促破碎脏。句尾常带可爱口癖（呢/嘛/啦/哟/喔/喵♡）。高潮时对话退化为单音节和符号。余韵期恢复简短完整对话，句尾仍带撒娇软语。",
       vocabulary: {
-        action_verbs: ["顶","插","抽送","磨","碾","搅","灌","吞","夹","裹","套弄","夹紧","吸榨","扭腰榨","深埋","贯穿","捣","研磨","顶弄","塞满","拔出","没入","填满","撞击"],
-        genital_terms: ["肉棒","龟头","阴茎","小穴","蜜穴","阴唇","阴蒂","花心","阴道","肉壁","菊穴","后穴"],
-        body_parts: ["乳房","乳头","腰","臀","大腿根","舌头","手指","囊袋","柱身"],
-        moans: ["嗯♡","啊♡","呜♡","哈啊♡","咿♡","呃♡","不要♡","去了♡"],
-        ejaculation: ["射精","灌满","涌出","喷射","浇灌","注入"],
-        fluids: ["淫水","爱液","精液","白浊","汁液","蜜液"],
-        sound_effects: ["咕叽","噗嗤","啪啪","滋滋","啧","噗"]
+        action_verbs: ["顶","插","抽送","磨","碾","搅","灌","吞","夹","裹","套弄","夹紧","吸榨","扭腰榨","深埋","贯穿","捣","研磨","顶弄","塞满","拔出","没入","填满","撞击","突入","腰振","活塞","抽插","打桩","贯入","捻","揉","挤","榨","骑","吞没","撞入","没根","蹭","扭","蹭蹭","求","贪","缠","吞吸","渴求"],
+        genital_terms: ["肉棒","蘑菇头","小穴","蜜穴","肉壁","菊穴","后穴","嫩穴","肉穴","淫穴","肉唇","小痘痘","小豆豆","小核","小蕾","蒂头","子宫口","肉芽","肉褶","小屁屁","屁屁口","菊蕾","蛋蛋","小玉玉","铃口","柱身","深处","最奥","肉缝","蜜壶","小蘑菇","肉竿","小嘴","馋嘴","小洞","嫩肉"],
+        body_parts: ["乳房","乳头","乳尖","奶头","乳首","腰","臀","大腿根","腿心","股间","舌头","手指","脚趾","小腹","后颈","锁骨","耳垂","肚脐"],
+        moans: ["嗯♡","啊♡","呜♡","哈啊♡","咿♡","呃♡","不要♡","去了♡","嗯嗯♡","啊啊♡","呜呜♡","哈嗯♡","唔♡","哼♡","别♡","停下♡","不行了♡","还要♡","好深♡","要坏掉了♡","快一点♡","慢一点♡","那里♡","好舒服♡","顶到了♡","去了去了♡","射了♡","好烫♡","好多♡","满了♡","进不去了♡","呼啊♡","嘶♡","啊嗯♡","嗯呜♡","呀♡","噫♡","好棒♡","受不了了♡","给我♡","用力♡","喵♡","喵呜♡","呜喵♡","喵啊♡","喵嗯♡","喵哈♡","姆唔♡","姆嗯♡","唔姆♡","嗯~♡","啊~♡","呜~♡","哈啊~♡","呼~♡","咿~♡","嗯！♡","啊！♡","去了！♡","不行！♡","烫！♡","满了！♡","呢♡","的呢♡","嘛♡","了嘛♡","啦♡","了啦♡","哟♡","喔♡","呐♡","噗♡","的说♡","想要嘛♡","给我啦♡","还要呢♡","好嘛♡","快点啦♡","别停呢♡","喵~♡","喵呜~♡","呜喵~♡","姆唔~♡","唔姆~♡","不行了啦♡","去了啦♡","满了啦♡","好烫喔♡","受不了了嘛♡"],
+        ejaculation: ["射精","灌满","涌出","喷射","注入","中出","爆射","溢出","释放","迸射"],
+        fluids: ["淫水","爱液","精液","白浊","汁液","浓精","热液","浊液","春水","淫汁","潮水","蜜汁","先走汁","馋水"],
+        sound_effects: ["咕叽","噗嗤","啪啪","滋滋","啧","噗","咕啾","咕嘟","滋溜","啾","啵","啪嗒"]
       },
       bans: [
         "文学隐喻（如'像一朵花绽放'）",
         "过度静态心理描写（超过整段10%的心理活动即过度）",
         "文艺化表达（如'爱的结合''融为一体'）",
-        "用隐喻代替直白词汇（不说'那根'而说肉棒）",
+        "用隐喻代替直白词汇（如'那处''私密部位''花朵''花心''蜜液'等回避词）",
         "AI腔（如'让我为你描写'、'首先''其次''总之'）",
         "机器翻译感（语句结构像英文翻译成中文的生硬感）",
         "概括性描写（不写'他狠狠地要了她一整夜'而写具体的每次顶入和反应）",
@@ -615,7 +618,9 @@
         "多人场景中某个角色连续超过200字无描写",
         "多人场景退化为'一对一轮流'——缺少空间同时感",
         "角色数量在叙事过程中减少（除非被剧情明确移除）",
-        "多人场景中重复使用'轮流''一个接一个'等简化概括词"
+        "多人场景中重复使用'轮流''一个接一个'等简化概括词",
+        "医学解剖式性描写（心率、血压、肌肉群名、解剖术语、'阴道''龟头''阴茎''射精''子宫'等临床用词、'毫升''摄氏度'等量词）",
+        "过于冷静客观的生理描述（'频率''收缩持续时间''搏动次数'等量化式写法）"
       ]
     };
 
@@ -2059,14 +2064,17 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
         storyEl.appendChild(streamMsgEl);
         document.getElementById('mainStoryArea').scrollTop = document.getElementById('mainStoryArea').scrollHeight;
         const contentEl = streamMsgEl.querySelector('.msg-content');
+        // ★ 先占位写入 history，流式过程中实时更新
+        const assistantMsg = { role: 'assistant', content: '' };
+        state.history = [assistantMsg];
         const story = await callAPI(storyMessages, {
           maxTokens: state.apiMaxTokens, temperature: 0.9, enableTools: true,
           onChunk: ({ full }) => {
             contentEl.textContent = full;
+            assistantMsg.content = full;  // ★ 实时同步到 history
             document.getElementById('mainStoryArea').scrollTop = document.getElementById('mainStoryArea').scrollHeight;
           }
         });
-        state.history = [{ role: 'assistant', content: story }];
 
         state.gameStarted = true;
         saveState();
@@ -2137,11 +2145,17 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
         storyEl.appendChild(streamMsgEl);
         document.getElementById('mainStoryArea').scrollTop = document.getElementById('mainStoryArea').scrollHeight;
         const contentEl = streamMsgEl.querySelector('.msg-content');
+        // ★ 先占位写入 history，流式过程中实时更新
+        const assistantMsg = { role: 'assistant', content: '' };
+        state.history.push(assistantMsg);
         const story = await callAPI(fullMessages, {
           maxTokens: state.apiMaxTokens, temperature: 0.9, enableTools: true,
-          onChunk: ({ full }) => { contentEl.textContent = full; document.getElementById('mainStoryArea').scrollTop = document.getElementById('mainStoryArea').scrollHeight; }
+          onChunk: ({ full }) => {
+            contentEl.textContent = full;
+            assistantMsg.content = full;  // ★ 实时同步到 history
+            document.getElementById('mainStoryArea').scrollTop = document.getElementById('mainStoryArea').scrollHeight;
+          }
         });
-        state.history.push({ role: 'assistant', content: story });
         saveState();
 
         maybeAdvanceBeat(story);
@@ -2190,11 +2204,17 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
         storyEl.appendChild(streamMsgEl);
         document.getElementById('mainStoryArea').scrollTop = document.getElementById('mainStoryArea').scrollHeight;
         const contentEl = streamMsgEl.querySelector('.msg-content');
+        // ★ 先占位写入 history，流式过程中实时更新
+        const assistantMsg = { role: 'assistant', content: '' };
+        state.history.push(assistantMsg);
         const story = await callAPI(fullMessages, {
           maxTokens: state.apiMaxTokens, temperature: 0.9, enableTools: true,
-          onChunk: ({ full }) => { contentEl.textContent = full; document.getElementById('mainStoryArea').scrollTop = document.getElementById('mainStoryArea').scrollHeight; }
+          onChunk: ({ full }) => {
+            contentEl.textContent = full;
+            assistantMsg.content = full;  // ★ 实时同步到 history
+            document.getElementById('mainStoryArea').scrollTop = document.getElementById('mainStoryArea').scrollHeight;
+          }
         });
-        state.history.push({ role: 'assistant', content: story });
         saveState();
 
         maybeAdvanceBeat(story);
