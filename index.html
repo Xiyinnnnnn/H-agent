@@ -1868,6 +1868,7 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
 
     /* ================== API调用（真流式+工具循环） ================== */
     async function callAPI(messages, options = {}) {
+      let controller;
       try {
 
       const {
@@ -1878,7 +1879,7 @@ ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
       } = options;
       if (!apiKey) throw new Error('API Key 未设置');
       const url = baseUrl.replace(/\/+$/, '') + '/chat/completions';
-      const controller = new AbortController();
+      controller = new AbortController();
       const currentSignal = signal || controller.signal;
       if (!signal) state.abortController = controller;
 
