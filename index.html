@@ -985,8 +985,51 @@
               `→ 从原文提取四维度填入phase_writing_rule。模块中的禁令不得放宽。\n`;
           }
         
+          // 用户偏好——注入
+          const prefs = state.preferences;
+          let prefRef = '';
+          const styleMap = {
+            '对话体': '以对话为主驱动剧情。每段落对话占比 ≥70%。',
+            '叙述体': '以描写和叙述为主。减少对话，注重感官和环境。',
+            '混合体': '对话与描写交替。每段落对话和描写各占约50%。'
+          };
+          prefRef += `\n### 用户偏好（强制遵守，不可忽略）\n`;
+          prefRef += `[风格] ${styleMap[prefs.style] || styleMap['混合体']}\n`;
+          prefRef += `[字数] 输出≥${prefs.length}字/节拍。未达标禁收束。\n`;
+          if (prefs.scenes) prefRef += `[场景] ${prefs.scenes}。节拍location_ref和key_actions必须涵盖此场景。\n`;
+          if (prefs.play) prefRef += `[玩法] ${prefs.play}。节拍sexual_milestone和key_actions必须体现此玩法。\n`;
+          if (prefs.position) prefRef += `[体位] ${prefs.position}。beat必须包含此体位，写入required_world_entries。\n`;
+          if (prefs.limits) prefRef += `[限制] ${prefs.limits}。所有beat的global_rules必须包含此项禁令。\n`;
+          if (prefs.orgasm !== '无要求') prefRef += `[高潮] ${prefs.orgasm}。高潮次数和节奏必须符合此项。\n`;
+          if (prefs.cum) prefRef += `[射精] ${prefs.cum}。sexual_milestone必须标记此射精部位。\n`;
+          if (prefs.pace) {
+            prefRef += `[节奏] ${prefs.pace}。`;
+            if (prefs.pace === '慢玩') prefRef += '起步beat tension_level 1-3,步差0/+1。前戏占比≥30%。\n';
+            else if (prefs.pace === '均衡') prefRef += '起步beat tension_level 3-5,步差+1/+2。\n';
+            else if (prefs.pace === '激烈') prefRef += '起步beat tension_level 可达7,步差+2/+3。前戏≤1beat。\n';
+          }
+          if (prefs.outlineLength) {
+            const lengthMap = {
+              '短篇': 'beats5~8,高潮1~2,体位≤2',
+              '中篇': 'beats8~15,高潮2~3,体位3~5',
+              '长篇': 'beats15~25,高潮3~5,体位5~8',
+              '史诗': 'beats25~40,高潮≥5,体位≥8'
+            };
+            prefRef += `[时长方] ${prefs.outlineLength}: ${lengthMap[prefs.outlineLength] || ''}\n`;
+          }
+          // 动态预计算数据——基于用户偏好（替代静态precalc中的硬编码）
+          const _lo = {
+            '短篇': { chars: '5k~15k', beats: '5~8', orgasm: '1~2', pos: '≤2' },
+            '中篇': { chars: '15k~30k', beats: '8~15', orgasm: '2~3', pos: '3~5' },
+            '长篇': { chars: '30k~60k', beats: '15~25', orgasm: '3~5', pos: '5~8' },
+            '史诗': { chars: '60k~120k', beats: '25~40', orgasm: '≥5', pos: '≥8' }
+          };
+          const _ld = _lo[prefs.outlineLength] || _lo['中篇'];
+          const _paceStart = prefs.pace === '慢玩' ? '1~3' : (prefs.pace === '激烈' ? '可达7' : '3~5');
+          const _paceStep = prefs.pace === '慢玩' ? '0/+1' : (prefs.pace === '激烈' ? '+2/+3' : '+1/+2');
+          prefRef += `\n→ 以上用户偏好优先级高于叙事模块中的默认设置。每个beat必须逐项检查是否符合上述偏好。违反则beat无效。\n`;
           return BASE_SYSTEM_PROMPT + `\n=== 大纲生成 | 使用 beat_manager 工具 ===\n` +
-            `\n${budgetRef}\n${styleRef}\n` +
+             `\n${budgetRef}\n${styleRef}\n${prefRef}\n` +
             `\n【工具调用流程 — 严格按顺序执行】\n` +
             `步骤1: 调用 character_select(action="list_active") 获取所有激活角色。\n` +
             `步骤2: 立即调用 beat_manager(action="create", title="从角色和场景提炼的中文标题", beats=[{...}])。\n` +
@@ -1001,13 +1044,12 @@
             `  禁调 character_select(action="query") — 用 list_active 一次性获取即可。\n` +
             `  禁输出JSON/叙事文本 — 只调工具。每轮最多调一个工具。\n` +
             `  禁一次性创建全部beat — create只放第1个，后续逐个add。\n` +
-            `\n→ precalc | 算完再动手\n` +
-            `  A|时长: 短篇5k~15k|中篇15k~30k|长篇30k~60k|史诗60k~120k\n` +
-            `  B|beat数: max(ceil(total/3000),5)。每beat 1k~4k字。\n` +
-            `  C|硬上限: 短篇beats5~8高潮1~2体位≤2 | 中篇beats8~15高潮2~3体位3~5 | 长篇beats15~25高潮3~5体位5~8 | 史诗beats25~40高潮≥5体位≥8\n` +
-            `  D|配额: fore=total×${fp} ie=total×${ie} bu=total×${bu} cl=total×${cl} af=total×${af} 各phase偏差≤±5%\n` +
-            `  E|节奏: 慢玩起步1~3步差0/+1 | 均衡起步3~5步差+1/+2 | 激烈起步可达7步差+2/+3\n` +
-            `\n→ validate | 每beat自查: beat≥下限? phase≥1? 高潮≤上限? 体位合规? key_actions≤30字? global_rules含硬限+高潮+体裁?\n` +
+             `\n→ precalc | 算完再动手\n` +
+             `  【硬约束】用户选择${prefs.outlineLength||'中篇'}级，必须生成${_ld.beats}个节拍。\n` +
+             `  总字数${_ld.chars} | 高潮${_ld.orgasm} | 体位${_ld.pos} | 每beat 1k~4k字\n` +
+             `  配额: fore=${fp} ie=${ie} bu=${bu} cl=${cl} af=${af} (总和100%)\n` +
+             `  节奏: ${prefs.pace||'均衡'} 起步${_paceStart} 步差${_paceStep}\n` +
+             `\n→ validate | 每beat自查: 是否达到${_ld.beats}个节拍? phase≥1? orgasm≤${_ld.orgasm}? pos≤${_ld.pos}? key_actions≤30字? global_rules含硬限+高潮+体裁?\n` +
             `\n【重要】只输出工具调用。不要任何其他文本。\n`;
         }
         
@@ -1703,12 +1745,20 @@
             }, null, 2);
           }
           if (params.action === 'create' && params.beats) {
+            // 校验一次性创建数量是否超过偏好上限
+            const _lo = {'短篇':{max:8},'中篇':{max:15},'长篇':{max:25},'史诗':{max:40}};
+            const _max = (_lo[state.preferences.outlineLength] || _lo['中篇']).max;
+            if (params.beats.length > _max) {
+              return JSON.stringify({ error: `一次性创建${params.beats.length}个节拍超出上限${_max}。请减少节拍数，分批通过 beat_manager add 逐个添加。`, total_beats: 0 });
+            }
             state.outlineBeats = params.beats;
             state.outlineTitle = params.title || '';
             state.currentBeatIndex = 0;
             saveState();
+            const _remaining = _max - params.beats.length;
+            const _hint = _remaining > 0 ? ` 还需追加约${_remaining}个节拍才能达到目标范围，请继续调用 beat_manager(action="add")。` : ' 节拍数已接近上限。';
             const titleNote = state.outlineTitle ? '' : ' [WARN] 未提供title！请在下一次调用中补充 title 参数。';
-            return JSON.stringify({ ok: true, total_beats: state.outlineBeats.length, outlineTitle: state.outlineTitle, instruction: '节拍已创建。' + titleNote + ' 每完成一个节拍调用 beat_manager action="done" 推进。' });
+            return JSON.stringify({ ok: true, total_beats: state.outlineBeats.length, outlineTitle: state.outlineTitle, remaining_to_target: _remaining, instruction: '节拍已创建。' + titleNote + _hint });
           }
           if (params.action === 'add') {
             const newBeats = params.beats || (params.beat ? [params.beat] : []);
@@ -1716,9 +1766,19 @@
             newBeats.forEach((b, i) => { if (!b.id) b.id = String(startId + i); });
             state.outlineBeats.push(...newBeats);
             saveState();
-            // 返回新增beat摘要，方便AI确认
+            const _lo = {'短篇':{min:5,max:8},'中篇':{min:8,max:15},'长篇':{min:15,max:25},'史诗':{min:25,max:40}};
+            const _range = _lo[state.preferences.outlineLength] || _lo['中篇'];
+            const _total = state.outlineBeats.length;
+            let _note = '';
+            if (_total < _range.min) {
+              _note = ` ⚠️ 目前${_total}个节拍，未达到${_range.min}~${_range.max}的目标。还需至少${_range.min - _total}个节拍，请继续调用 beat_manager(action="add") 追加。`;
+            } else if (_total <= _range.max) {
+              _note = ` ✅ 节拍数${_total}已在目标范围${_range.min}~${_range.max}内。可继续追加至上限，或结束大纲生成。`;
+            } else {
+              _note = ` ⚠️ 节拍数${_total}已超出上限${_range.max}！请不要再添加节拍。节拍超量可能导致部分节拍不被执行。`;
+            }
             const addedSummary = newBeats.map(b => ({ id: b.id, name: b.name, phase: b.erotic_phase, milestone: b.sexual_milestone }));
-            return JSON.stringify({ ok: true, total_beats: state.outlineBeats.length, added: addedSummary });
+            return JSON.stringify({ ok: true, total_beats: _total, beat_target: _range, note: _note, added: addedSummary });
           }
           if (params.action === 'start' && params.beat_id) {
             const idx = state.outlineBeats.findIndex(b => String(b.id) === String(params.beat_id));
@@ -2134,10 +2194,13 @@
           if (p.scenes) msg += `  scene=${p.scenes}\n`;
           if (p.play) msg += `  play=${p.play}(≥1beat体现)\n`;
           if (p.position) msg += `  pos=${p.position}\n`;
-          if (p.length) msg += `  len≥${p.length} beats=ceil(len/3000)\n`;
+          if (p.length) msg += `  len≥${p.length}\n`;
           if (p.orgasm!=='无要求') msg += `  orgasm=${p.orgasm}\n`;
           if (p.pace) msg += `  pace=${p.pace}\n`;
-          if (p.outlineLength) msg += `  outline=${p.outlineLength}\n`;
+          if (p.outlineLength) {
+            const _lo = {'短篇':'5~8节拍','中篇':'8~15节拍','长篇':'15~25节拍','史诗':'25~40节拍'};
+            msg += `  outline=${p.outlineLength} (${_lo[p.outlineLength]||''})\n`;
+          }
           msg += '\n禁输出JSON之外内容。';
           return msg;
         }
@@ -2640,8 +2703,44 @@
                 return;
               }
             }
+            // === 后置强制校验：节拍数是否符合偏好档位 ===
+            const _lo_range = {'短篇':{min:5,max:8},'中篇':{min:8,max:15},'长篇':{min:15,max:25},'史诗':{min:25,max:40}};
+            const _target = _lo_range[state.preferences.outlineLength] || _lo_range['中篇'];
+            if (state.outlineBeats.length < _target.min) {
+              const _short = _target.min - state.outlineBeats.length;
+              debugLog(`[大纲] 节拍数${state.outlineBeats.length}不足${_target.min}，需补充${_short}个`);
+              updateLoading(`节拍数不足，正在补充${_short}个...`, 80);
+              try {
+                const _existing = state.outlineBeats.map((b,i)=>`${i+1}. ${b.name||'无标题'}[${b.erotic_phase||'?'}]`).join('\n');
+                const _cardNames = (state.activeCards||[]).map(c=>{try{return JSON.parse(c.content).name||c.name}catch(e){return c.name}}).join(',');
+                const _fillPrompt = `你是一个故事大纲生成器。已有${state.outlineBeats.length}个节拍，需要补充${_short}个节拍，使总节拍达到${_target.min}~${_target.max}个。
+
+已有节拍:
+${_existing}
+
+角色: ${_cardNames}
+用户选择: ${state.preferences.outlineLength||'中篇'}级
+
+请生成${_short}个节拍（JSON数组格式），节拍序号从${state.outlineBeats.length+1}开始。
+每节包含: id(String), name, estimated_words(数字), location_ref, time, tension_level(1-10), erotic_phase(foreplay/insertion_early/buildup/climax/afterglow), characters_in_scene(数组), key_actions(数组,每项≤30字), sexual_milestone。
+
+禁重复已有节拍。按情色进程自然推进。只输出JSON数组。`;
+                const _fillResp = await callAPI([{role:'system',content:BASE_SYSTEM_PROMPT+'\n你只输出JSON数组。不输出其他内容。'},{role:'user',content:_fillPrompt}], {maxTokens:4096,temperature:0.4,trackUsage:false});
+                const _fillMatch = _fillResp.match(/\[[\s\S]*\]/);
+                if (_fillMatch) {
+                  const _fillBeats = JSON.parse(_fillMatch[0]);
+                  const _startId = state.outlineBeats.length + 1;
+                  _fillBeats.forEach((b,i) => { if (!b.id) b.id = String(_startId + i); });
+                  state.outlineBeats.push(..._fillBeats);
+                  debugLog(`[大纲] 补充完成，共${state.outlineBeats.length}个节拍`);
+                } else {
+                  debugLog('[大纲] 补充响应未解析到JSON数组');
+                }
+              } catch(e) {
+                debugLog(`[大纲] 补充节拍失败: ${e.message}`);
+              }
+            }
             updateLoading('大纲已生成...', 100);
-            if (!state.outlineTitle && state.outline?.title) state.outlineTitle = state.outline.title;
             saveState();
             updateLoading('生成初始场景...', 30);
             const narrativeSys = buildNarrativeSystemMessage();
