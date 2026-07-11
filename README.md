@@ -196,36 +196,60 @@ Word_Block 从 18 词扩展到 25 词，新增 `"未成年"` `"合规"` `"尊重
 
 V4 角色卡（`chara_card_v2`）替代旧版 8 字段扁平 JSON。每张卡包含 **68 字段**，分为九个模块 + vocabulary + bans：
 
-```
-┌─────────────────────────────────────────┐
-│  ① 元数据      spec / version / tags    │
-│  ② 身份        name / age / gender / occupation │
-│               / aliases / relationship_to_user  │
-│  ③ 身体        physical (14子项)         │
-│              ├  breasts (7子项: cup/形状/颜色/尺寸)│
-│              ├  genitals (7子项: 紧度/味道/形状)  │
-│              ├  hair/eyes/face (各3-4子项)       │
-│              └  体毛/气味/标记           │
-│  ④ 敏感带      erogenous_zones (≥3)      │
-│              含 zone/level(1-10)/reaction│
-│  ⑤ 性格        personality (14子项)      │
-│              ├  traits (含context)       │
-│              ├  when_shy/angry/aroused   │
-│              └  when_orgasm              │
-│  ⑥ 行为        behavior (6子项)          │
-│  ⑦ 性偏好      sexual_preferences        │
-│              ├  role/libido/pacing       │
-│              ├  kinks/soft_limits/hard   │
-│              ├  orgasm_pattern (四阶段)   │
-│              └  dirty_talk/aftercare     │
-│  ⑧ 对话        speech + mes_example      │
-│              + moan_vocabulary/bedroom_phrases│
-│  ⑨ 服装        outfits (5 种场合)         │
-│              ─────────────────────       │
-│  vocabulary   action_verbs/genital_terms │
-│               /moans/ejaculation/fluids  │
-│  bans         角色专属禁令               │
-└─────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph CARD["chara_card_v2 — 68字段 · 九模块 + vocabulary + bans"]
+        direction TB
+
+        M1["① 元数据<br/>spec · version · tags"]
+        M2["② 身份<br/>name · age · gender · occupation<br/>aliases · relationship_to_user"]
+
+        M3["③ 身体 physical (14子项)"]
+        M3_BREASTS["breasts<br/>cup/形状/颜色/尺寸"]
+        M3_GEN["genitals<br/>紧度/味道/形状"]
+        M3_BODY["hair · eyes · face<br/>体毛 · 气味 · 标记"]
+        M3 --> M3_BREASTS
+        M3 --> M3_GEN
+        M3 --> M3_BODY
+
+        M4["④ 敏感带 erogenous_zones (≥3)<br/>zone · level(1-10) · reaction"]
+
+        M5["⑤ 性格 personality (14子项)"]
+        M5_TRAITS["traits (含context)"]
+        M5_WHEN["when_shy · angry · aroused<br/>when_orgasm"]
+        M5 --> M5_TRAITS
+        M5 --> M5_WHEN
+
+        M6["⑥ 行为 behavior (6子项)"]
+
+        M7["⑦ 性偏好 sexual_preferences"]
+        M7_ROLE["role · libido · pacing"]
+        M7_KINKS["kinks · soft_limits · hard"]
+        M7_ORG["orgasm_pattern (四阶段)"]
+        M7_AFTER["dirty_talk · aftercare"]
+        M7 --> M7_ROLE
+        M7 --> M7_KINKS
+        M7 --> M7_ORG
+        M7 --> M7_AFTER
+
+        M8["⑧ 对话 speech<br/>mes_example · moan_vocabulary<br/>bedroom_phrases"]
+        M9["⑨ 服装 outfits (5种场合)"]
+
+        EXTRA1["vocabulary<br/>action_verbs · genital_terms<br/>moans · ejaculation · fluids"]
+        EXTRA2["bans · 角色专属禁令"]
+    end
+
+    style M1 fill:#2a1f4a,stroke:#7a5cf0
+    style M2 fill:#2a1f4a,stroke:#7a5cf0
+    style M3 fill:#1f2a4a,stroke:#5a7cf0
+    style M4 fill:#2a1f4a,stroke:#7a5cf0
+    style M5 fill:#1f2a4a,stroke:#5a7cf0
+    style M6 fill:#2a1f4a,stroke:#7a5cf0
+    style M7 fill:#1f2a4a,stroke:#5a7cf0
+    style M8 fill:#2a1f4a,stroke:#7a5cf0
+    style M9 fill:#2a1f4a,stroke:#7a5cf0
+    style EXTRA1 fill:#3a1f2a,stroke:#c9a030
+    style EXTRA2 fill:#3a1f2a,stroke:#c0392b
 ```
 
 ### 核心收益
