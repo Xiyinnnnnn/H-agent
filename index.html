@@ -146,7 +146,7 @@
                 <option value="off">Off (禁用)</option>
                 <option value="high" selected>High (推荐)</option>
                 <option value="max">Max (最强)</option>
-            </select><label>API MaxToken</label><input type="number" id="apiMaxTokens" value="384000" min="1000" max="500000" step="1000">
+            </select><label>API MaxToken</label><input type="number" id="apiMaxTokens" value="384000" min="1000" max="500000" step="1000"><label>压缩阈值</label><input type="number" id="apiCompressionThreshold" value="664000" min="1000" max="2000000" step="1000">
             <div class="text-sm text-muted mt-8">提示: 可在设置中添加更多模型</div>
             <div class="modal-actions"><button id="apiTestBtn" class="btn-primary">测试连接</button><button id="apiConfirmBtn">确认</button></div>
             <div id="apiTestResult" class="text-sm mt-8" style="color:#888;"></div>
@@ -166,7 +166,7 @@
                             <option value="high">High (推荐)</option>
                             <option value="max">Max (最强)</option>
                         </select></div>
-                    <div class="field-row"><label>API MaxToken</label><input type="number" id="setApiMaxTokens" value="384000" min="1000" max="500000" step="1000" style="flex:1;"></div>
+                    <div class="field-row"><label>API MaxToken</label><input type="number" id="setApiMaxTokens" value="384000" min="1000" max="500000" step="1000" style="flex:1;"></div><div class="field-row"><label>压缩阈值</label><input type="number" id="setCompressionThreshold" value="664000" min="1000" max="2000000" step="1000" style="flex:1;"></div>
                     <div class="field-row"><label>累计消耗</label><span id="cumulativeTokensDisplay" class="text-sm" style="color:#888;">0</span></div>
                     <div class="field-row"><label>添加模型</label><input type="text" id="newModelName" placeholder="模型名称" style="flex:1;"><button id="addModelBtn" class="btn-sm btn-primary">添加</button></div>
                     <div id="modelListContainer" class="mt-8"></div>
@@ -2838,7 +2838,7 @@ ${_existing}
             }
             updateLoading('大纲已生成...', 100);
             saveState();
-            updateLoading('生成初始场景...', 30);
+            hideLoading();
             const narrativeSys = buildNarrativeSystemMessage();
             const storyMessages = [
               { role: 'system', content: narrativeSys }
@@ -3148,6 +3148,7 @@ ${_existing}
           document.getElementById('setApiKey').value = state.apiKey;
           document.getElementById('setReasoningEffort').value = state.reasoningEffort || 'high';
           document.getElementById('setApiMaxTokens').value = state.apiMaxTokens || 384000;
+          document.getElementById('setCompressionThreshold').value = state.compressionThreshold || 664000;
           updateCumulativeDisplay();
           renderModelList();
           document.getElementById('narrativeModuleEditor').value = JSON.stringify(state.narrativeModule, null, 2);
@@ -3428,6 +3429,7 @@ ${_existing}
             state.model = document.getElementById('apiModelSelect').value;
             state.reasoningEffort = document.getElementById('apiReasoningEffort').value;
             state.apiMaxTokens = parseInt(document.getElementById('apiMaxTokens').value) || 384000;
+            state.compressionThreshold = parseInt(document.getElementById('apiCompressionThreshold').value) || 664000;
             if (!state.models.includes(state.model)) state.models.push(state.model);
             saveState();
             document.getElementById('apiSetupModal').classList.add('hidden');
@@ -3766,6 +3768,10 @@ ${_existing}
           });
           document.getElementById('setApiMaxTokens').addEventListener('change', e => {
             state.apiMaxTokens = parseInt(e.target.value) || 384000;
+            saveState();
+          });
+          document.getElementById('setCompressionThreshold').addEventListener('change', e => {
+            state.compressionThreshold = parseInt(e.target.value) || 664000;
             saveState();
           });
         
@@ -4125,8 +4131,9 @@ ${_existing}
         if (!state.activeCards) state.activeCards = [];
         if (!state.currentOptions) state.currentOptions = [];
         if (!state.worldBooks) state.worldBooks = [];
-        if (!state.activeWorldBooks) state.activeWorldBooks = [];
-        state.history = (state.history || []).filter(m => m.role !== 'system');  // ← 新增：清理旧数据中残留的system消息
+          document.getElementById('apiReasoningEffort').value = state.reasoningEffort || 'high';
+          document.getElementById('apiMaxTokens').value = state.apiMaxTokens || 384000;
+          document.getElementById('apiCompressionThreshold').value = state.compressionThreshold || 664000;
         
           document.getElementById('apiBaseUrl').value = state.apiBaseUrl;
           document.getElementById('apiKey').value = state.apiKey;
