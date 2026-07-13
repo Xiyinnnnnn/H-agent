@@ -170,7 +170,7 @@
                     <div class="field-row"><label>累计消耗</label><span id="cumulativeTokensDisplay" class="text-sm" style="color:#888;">0</span></div>
                     <div class="field-row"><label>添加模型</label><input type="text" id="newModelName" placeholder="模型名称" style="flex:1;"><button id="addModelBtn" class="btn-sm btn-primary">添加</button></div>
                     <div id="modelListContainer" class="mt-8"></div>
-                    <div class="field-row mt-8"><button id="setApiTestBtn" class="btn-sm">测试API连接</button><span id="setApiTestResult" class="text-xs text-muted"></span></div>
+                    <div class="field-row mt-8"><button id="setApiTestBtn" class="btn-sm">测试API连接</button><button id="setApiGetModelsBtn" class="btn-sm" style="margin-left:8px;">获取模型</button><span id="setApiTestResult" class="text-xs text-muted"></span></div>
                 </div>
             </div><!-- === 叙事区 === -->
             <div class="collapse-section">
@@ -816,14 +816,23 @@
           const toSave = { ...state };
           delete toSave.abortController;
           delete toSave.pendingImportData;
-          localStorage.setItem(STATE_KEY, JSON.stringify(toSave));
+          delete toSave.capturedCalls;
+          delete toSave.debugLogs;
+          try { localStorage.setItem(STATE_KEY, JSON.stringify(toSave)); } catch(e) { console.error('保存状态失败', e); }
         }
         
         function loadState() {
           try {
             const raw = localStorage.getItem(STATE_KEY);
             if (!raw) return false;
-            const data = JSON.parse(raw);
+            let data;
+            try {
+              data = JSON.parse(raw);
+            } catch (parseErr) {
+              console.error('状态JSON损坏，清除并重置', parseErr);
+              localStorage.removeItem(STATE_KEY);
+              return false;
+            }
             Object.assign(state, data);
             state.debugLogs = [];
             state.debugEnabled = false;
@@ -840,8 +849,8 @@
             if (!state.outlineBeats) state.outlineBeats = [];
             if (!state.outlineTitle) state.outlineTitle = '';
             if (!state.sceneState) state.sceneState = { character_positions: {}, current_action: '', beat_progress: 0, milestone_completed: false };
-            if (!state.capturedCalls) state.capturedCalls = [];
-            state.history = (state.history || []).filter(m => m.content);
+            state.capturedCalls = [];  // 不保留调试捕获数据，避免损坏
+            state.history = (state.history || []).filter(m => m && m.content);
             state.abortController = null;
             state.pendingImportData = null;
             return true;
@@ -1953,13 +1962,37 @@
         /* ================== 工具请求文本容错捕获 ================== */
         function cleanToolCallsFromText(text) {
           if (!text) return text;
-          // Pattern 1: inline tool function calls like recall_context({...}) or scene_manager({...})
-          let cleaned = text.replace(/(recall_context|scene_manager|beat_manager|character_select)\s*\(\s*\{[^}]*\}\s*\)\s*/gi, '');
+          // Pattern 1: inline tool function calls with balanced parentheses — 支持字符串内括号不干扰depth
+          const toolFuncs = ['recall_context', 'scene_manager', 'beat_manager', 'character_select'];
+          for (const fn of toolFuncs) {
+            const re = new RegExp(fn + '\\s*\\(', 'gi');
+            let m;
+            while ((m = re.exec(text)) !== null) {
+              let depth = 1;
+              let pos = m.index + m[0].length;
+              let inString = false;
+              let strChar = null;
+              while (pos < text.length && depth > 0) {
+                const ch = text[pos];
+                if (inString) {
+                  if (ch === '\\') { pos++; } // 跳过转义字符如 \"
+                  else if (ch === strChar) { inString = false; strChar = null; }
+                } else {
+                  if (ch === '"' || ch === "'") { inString = true; strChar = ch; }
+                  else if (ch === '(') depth++;
+                  else if (ch === ')') depth--;
+                }
+                if (depth > 0) pos++;
+              }
+              text = text.substring(0, m.index) + text.substring(pos + 1);
+              re.lastIndex = m.index;
+            }
+          }
           // Pattern 2: tool calls without JSON params
-          cleaned = cleaned.replace(/(recall_context|scene_manager|beat_manager|character_select)\s*\([^)]*\)\s*/gi, '');
+          let cleaned = text.replace(/(recall_context|scene_manager|beat_manager|character_select)\s*\([^)]*\)\s*/gi, '');
           // Pattern 3: JSON blocks containing tool_call or function definitions
           cleaned = cleaned.replace(/```(?:json)?[\s\S]*?"(?:function|tool_calls|tool_call_id)"[\s\S]*?```/gi, '');
-          // Pattern 4: standalone tool JSON objects {"function":{...}} — 含空对象
+          // Pattern 4: standalone tool JSON objects {"function":{...}}
           cleaned = cleaned.replace(/\{\s*"function"\s*:\s*\{[^}]*\}\s*\}\s*,?\s*/gi, '');
           // Pattern 5: <tool_call> / <function> XML tags with content
           cleaned = cleaned.replace(/<\|?(tool_call|function|invoke|tool_response)\|?>[\s\S]*?<\/\|?(tool_call|function|invoke|tool_response)\|?>/gi, '');
@@ -1970,7 +2003,7 @@
           cleaned = cleaned.replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '');
           // Pattern 8: lines with "tool_use" or "tool_result" markers
           cleaned = cleaned.replace(/^.*?\[?(tool_use|tool_result|tool_call|function_call)\]?:?[^\n]*\n?/gmi, '');
-          // Pattern 9: common thinking/reasoning block patterns — 也匹配文本末尾无换行的情况
+          // Pattern 9: common thinking/reasoning block patterns
           cleaned = cleaned.replace(/^(?:思考|推理|内部|规划|计划)[：:][\s\S]*?(?=\n(?!\s*(?:思考|推理|内部|规划|计划)[：:])|$)/gmi, '');
           cleaned = cleaned.replace(/ {3,}/g, '  ');
           cleaned = cleaned.replace(/\n{4,}/g, '\n\n\n');
@@ -3498,6 +3531,25 @@ ${_existing}
               await callAPI([{role:'user',content:'Hello'}], {baseUrl:url,apiKey:key,model,maxTokens:10,thinking:false});
               hideLoading(); document.getElementById('setApiTestResult').textContent = '连接成功!'; toast('连接成功');
             } catch(e) { hideLoading(); document.getElementById('setApiTestResult').textContent = '失败: '+e.message; toast('失败'); }
+          });
+          document.getElementById('setApiGetModelsBtn').addEventListener('click', async () => {
+            const url = document.getElementById('setApiBaseUrl').value.trim().replace(/\/+$/, '');
+            const key = document.getElementById('setApiKey').value.trim();
+            if (!url || !key) { toast('请先填写API地址和Key'); return; }
+            showLoading(); updateLoading('获取模型列表...', 30);
+            try {
+              const res = await fetch(url + '/models', {
+                headers: { 'Authorization': 'Bearer ' + key }
+              });
+              if (!res.ok) throw new Error('HTTP ' + res.status);
+              const data = await res.json();
+              const models = (data.data || data.models || []).map(m => m.id || m.name || m).filter(Boolean);
+              if (!models.length) throw new Error('未获取到模型');
+              models.forEach(m => { if (!state.models.includes(m)) state.models.push(m); });
+              if (!models.includes(state.model) && models.length) state.model = models[0];
+              saveState(); renderModelList();
+              hideLoading(); toast('获取到 ' + models.length + ' 个模型');
+            } catch(e) { hideLoading(); toast('获取失败: ' + e.message); }
           });
         
           document.getElementById('resetNarrativeBtn').addEventListener('click', () => {
