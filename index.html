@@ -879,7 +879,12 @@
             };
             prefsBlock += `高潮: ${orgasmMap[prefs.orgasm] || prefs.orgasm}\n`;
           }
-          if (prefs.cum) prefsBlock += `射精部位: ${prefs.cum}。精液必射于此。射前必铺垫(触/吻/注视)。禁射他处。\n`;
+          // 射精——无论是否设置偏好都强制注入高潮射精规则
+          if (prefs.cum) {
+            prefsBlock += `射精部位: ${prefs.cum}。精液必射于此。射前必铺垫(触/吻/注视)。禁射他处。\n`;
+          } else {
+            prefsBlock += `射精规则(未设偏好): 每当角色达到高潮时，插入方必须射精。写清射精量、温度、喷射节奏和去向。精液不射在悬空中。\n`;
+          }
           const paceMap = {
             '慢玩': '节奏=慢玩。违反任一→段落无效：\n'
               + '① 每段1-2动作。禁≥3。动作写满感官再推进。\n'
@@ -996,12 +1001,16 @@
           prefRef += `\n### 用户偏好（强制遵守，不可忽略）\n`;
           prefRef += `[风格] ${styleMap[prefs.style] || styleMap['混合体']}\n`;
           prefRef += `[字数] 输出≥${prefs.length}字/节拍。未达标禁收束。\n`;
-          if (prefs.scenes) prefRef += `[场景] ${prefs.scenes}。节拍location_ref和key_actions必须涵盖此场景。\n`;
-          if (prefs.play) prefRef += `[玩法] ${prefs.play}。节拍sexual_milestone和key_actions必须体现此玩法。\n`;
+          // 射精——无条件要求，让大纲始终标注射精时机
+          if (prefs.cum) {
+            prefRef += `[射精] ${prefs.cum}。sexual_milestone必须标记此射精部位，ejaculation_timing必须填此射精时机。\n`;
+          } else {
+            prefRef += `[射精] 默认要求。每个climax/insertion_early节拍的sexual_milestone必须包含射精标记，ejaculation_timing必须填"插入方在谁体内/何处射精"。\n`;
+          }
           if (prefs.position) prefRef += `[体位] ${prefs.position}。beat必须包含此体位，写入required_world_entries。\n`;
           if (prefs.limits) prefRef += `[限制] ${prefs.limits}。所有beat的global_rules必须包含此项禁令。\n`;
           if (prefs.orgasm !== '无要求') prefRef += `[高潮] ${prefs.orgasm}。高潮次数和节奏必须符合此项。\n`;
-          if (prefs.cum) prefRef += `[射精] ${prefs.cum}。sexual_milestone必须标记此射精部位。\n`;
+          // 射精已在上面无条件注入，此处不再重复
           if (prefs.pace) {
             prefRef += `[节奏] ${prefs.pace}。`;
             if (prefs.pace === '慢玩') prefRef += '起步beat tension_level 1-3,步差0/+1。前戏占比≥30%。\n';
@@ -1017,6 +1026,7 @@
             };
             prefRef += `[时长方] ${prefs.outlineLength}: ${lengthMap[prefs.outlineLength] || ''}\n`;
           }
+          prefRef += `\n→ 以上用户偏好优先级高于叙事模块中的默认设置。每个beat必须逐项检查是否符合上述偏好。违反则beat无效。\n`;
           // 动态预计算数据——基于用户偏好（替代静态precalc中的硬编码）
           const _lo = {
             '短篇': { chars: '5k~15k', beats: '5~8', orgasm: '1~2', pos: '≤2' },
@@ -1027,7 +1037,6 @@
           const _ld = _lo[prefs.outlineLength] || _lo['中篇'];
           const _paceStart = prefs.pace === '慢玩' ? '1~3' : (prefs.pace === '激烈' ? '可达7' : '3~5');
           const _paceStep = prefs.pace === '慢玩' ? '0/+1' : (prefs.pace === '激烈' ? '+2/+3' : '+1/+2');
-          prefRef += `\n→ 以上用户偏好优先级高于叙事模块中的默认设置。每个beat必须逐项检查是否符合上述偏好。违反则beat无效。\n`;
           return BASE_SYSTEM_PROMPT + `\n=== 大纲生成 | 使用 beat_manager 工具 ===\n` +
              `\n${budgetRef}\n${styleRef}\n${prefRef}\n` +
             `\n【工具调用流程 — 严格按顺序执行】\n` +
@@ -1037,7 +1046,8 @@
             `  beats数组只放一个beat（第一个节拍）。后续beat通过 beat_manager(action="add", beat={...}) 逐个追加。\n` +
             `  每个beat对象: id(如"b1"), name, estimated_words(数字), location_ref, time, tension_level(1-10),\n` +
             `  erotic_phase, characters_in_scene, key_actions(3-5条≤30字/条),\n` +
-            `  sexual_milestone, required_card_fields([MUST]使用真实路径如physical.breasts.cup), transition_to_next,\n` +
+            `  sexual_milestone(【MUST】含射精标记: "X射在Y的Z部位"), ejaculation_timing(【MUST】谁何时在何处射精),\n` +
+            `  required_card_fields([MUST]使用真实路径如physical.breasts.cup), transition_to_next,\n` +
             `  phase_writing_rule(句长→感官→心理→对话), global_rules(每条"必须"/"禁止"开头)\n` +
             `\n【禁止事项】\n` +
             `  禁调 recall_context — 大纲阶段角色信息从 character_select 获取，无需查世界书。\n` +
@@ -1046,10 +1056,10 @@
             `  禁一次性创建全部beat — create只放第1个，后续逐个add。\n` +
              `\n→ precalc | 算完再动手\n` +
              `  【硬约束】用户选择${prefs.outlineLength||'中篇'}级，必须生成${_ld.beats}个节拍。\n` +
-             `  总字数${_ld.chars} | 高潮${_ld.orgasm} | 体位${_ld.pos} | 每beat 1k~4k字\n` +
+             `  总字数${_ld.chars} | 高潮${_ld.orgasm} + 射精${_ld.orgasm}(每高潮必含射精) | 体位${_ld.pos} | 每beat 1k~4k字\n` +
              `  配额: fore=${fp} ie=${ie} bu=${bu} cl=${cl} af=${af} (总和100%)\n` +
              `  节奏: ${prefs.pace||'均衡'} 起步${_paceStart} 步差${_paceStep}\n` +
-             `\n→ validate | 每beat自查: 是否达到${_ld.beats}个节拍? phase≥1? orgasm≤${_ld.orgasm}? pos≤${_ld.pos}? key_actions≤30字? global_rules含硬限+高潮+体裁?\n` +
+             `\n→ validate | 每beat自查: 是否达到${_ld.beats}个节拍? phase≥1? orgasm≤${_ld.orgasm}? pos≤${_ld.pos}? key_actions≤30字? global_rules含硬限+高潮+射精+体裁?\n` +
             `\n【重要】只输出工具调用。不要任何其他文本。\n`;
         }
         
@@ -1064,7 +1074,7 @@
             const cb = state.outlineBeats[currentIdx];
             if (cb) {
               beatStr += `\n### 当前节拍\n`;
-              beatStr += `名称: ${cb.name}\n情色阶段: ${cb.erotic_phase}\n性里程碑: ${cb.sexual_milestone}\n`;
+              beatStr += `名称: ${cb.name}\n情色阶段: ${cb.erotic_phase}\n性里程碑: ${cb.sexual_milestone}\n射精时机: ${cb.ejaculation_timing || '【高潮时必射】'}\n`;
               beatStr += `关键动作: ${(cb.key_actions || []).join('; ')}\n`;
               beatStr += `禁跳到: ${(state.outlineBeats[currentIdx + 1])?.name || '无'}\n`;
             }
@@ -1073,7 +1083,7 @@
             const cb = state.outline.beats[currentIdx];
             if (cb) {
               beatStr += `\n### 当前节拍\n`;
-              beatStr += `名称: ${cb.name}\n情色阶段: ${cb.erotic_phase}\n性里程碑: ${cb.sexual_milestone}\n`;
+              beatStr += `名称: ${cb.name}\n情色阶段: ${cb.erotic_phase}\n性里程碑: ${cb.sexual_milestone}\n射精时机: ${cb.ejaculation_timing || '【高潮时必射】'}\n`;
               beatStr += `关键动作: ${(cb.key_actions || []).join('; ')}\n`;
               beatStr += `禁跳到: ${(state.outline.beats[currentIdx + 1])?.name || '无'}\n`;
             }
@@ -1132,7 +1142,8 @@
           extra += `4. 必须推进当前节拍。禁跳下一拍。\n`;
           extra += `5. 禁违反任何角色hard_limits。\n`;
           extra += `6. 必须匹配角色性角色(role)和性癖(kinks)。\n`;
-          extra += `7. 大纲指定的体位/高潮要求必须在选项中体现。\n`;
+          extra += `11. 选项=动作简写，不是叙事。禁续写故事。禁输出非选项内容。\n`;
+          extra += `12. 【射精规则】当节拍处于climax/buildup阶段时，至少1个选项必须是射精动作(如"[我]射在她里面" "[林姐]用嘴接住")。高潮必含射精描写，没有射精选项就跳过了关键环节。\n`;
           extra += `8. 必须多样化: 动作推进/对话发起/环境互动/体位切换各方向分布。\n`;
           if (userCardName) {
             extra += `9. 【视角规则】${userCardName}=用户主视角。≥60%选项以[我]为出发点。其余选项标注其他角色如[${otherCardNames.join(']、[') || '其他角色'}]，各角色选项数大致相等。\n`;
@@ -1158,15 +1169,18 @@
         
           // 用户偏好（命令式）
           extra += `\n### 用户偏好\n`;
-          extra += `风格: ${prefs.style}。选项匹配此风格。\n`;
-          extra += `字数≥${prefs.length}。选项须支撑此量级。\n`;
+          // 射精选项——无条件要求
+          if (prefs.cum) {
+            extra += `射精部位: ${prefs.cum}。近高潮选项导向此部位，选项必须明确谁射在何处。\n`;
+          } else {
+            extra += `射精规则: climax/buildup阶段选项必含射精动作。写清谁射、射在哪、射多少。示例: "[我]抵紧深处射出来" "[林姐]张嘴接住浓精"\n`;
+          }
+          if (prefs.pace) extra += `节奏: ${prefs.pace}。慢玩→选项必含感官/环境/调情。均衡→动作/感官交替。激烈→体位切换/动作推进/高潮导向。不匹配→无效选项。\n`;
           if (prefs.scenes) extra += `场景: ${prefs.scenes}。选项必含此场景。\n`;
           if (prefs.play) extra += `玩法: ${prefs.play}。≥2选项含此。\n`;
           if (prefs.position) extra += `体位: ${prefs.position}。≥1选项含此。\n`;
           if (prefs.limits) extra += `限制: ${prefs.limits}。选项禁违反。\n`;
           if (prefs.orgasm !== '无要求') extra += `高潮: ${prefs.orgasm}。选项须推进至高潮。\n`;
-          if (prefs.cum) extra += `射精部位: ${prefs.cum}。近高潮选项导向此部位。\n`;
-          if (prefs.pace) extra += `节奏: ${prefs.pace}。慢玩→选项必含感官/环境/调情。均衡→动作/感官交替。激烈→体位切换/动作推进/高潮导向。不匹配→无效选项。\n`;
           if (prefs.outlineLength) extra += `时长: ${prefs.outlineLength}。短篇→选项集中推高潮,禁中场休息/场景切换。长篇/史诗→允休息/二次勃起/场景切换/道具。\n`;
         
           extra += '\n【用词禁令】选项禁用以下医学/解剖术语：耻骨/括约肌/会阴/前列腺/子宫颈/海绵体/尿道/肛管/耻骨联合。改用动作描述替代。';
@@ -1391,12 +1405,14 @@
           start   — 开始执行指定节拍（传 beat_id）
           done    — 标记当前节拍完成，推进到下一节拍
           current — 查询当前节拍信息
-          list    — 列出全部节拍`,
+          list    — 列出全部节拍
+          注: climax/insertion_early beat的sexual_milestone和ejaculation_timing必填射精标记。`,
             parameters: {
               type: "object",
               properties: {
                 action: { type: "string", enum: ["create", "add", "start", "done", "current", "list"], description: "操作类型" },
-                beats: { type: "array", items: { type: "object" }, description: "action=create/add时必填。节拍数组，每项含id/name/erotic_phase/key_actions等" },
+                beats: { type: "array", items: { type: "object" }, description: "action=create/add时必填。节拍数组，每项含id/name/erotic_phase/key_actions/sexual_milestone(必含射精标记)/ejaculation_timing(必填射精时机及部位)等" },
+                beat: { type: "object", description: "action=add时单个节拍，含id/name/sexual_milestone(含射精)/ejaculation_timing" },
                 beat_id: { type: "string", description: "action=start/done时必填。目标节拍ID" }
               },
               required: ["action"]
@@ -1656,16 +1672,16 @@
             if (state.outlineBeats?.length) {
               const ci = state.currentBeatIndex || 0;
               const current = state.outlineBeats[ci];
-              const slimBeat = current ? { name: current.name, id: current.id, erotic_phase: current.erotic_phase, tension_level: current.tension_level, sexual_milestone: current.sexual_milestone, key_actions: (current.key_actions || []).slice(0, 3), location_ref: current.location_ref } : null;
+              const slimBeat = current ? { name: current.name, id: current.id, erotic_phase: current.erotic_phase, tension_level: current.tension_level, sexual_milestone: current.sexual_milestone, ejaculation_timing: current.ejaculation_timing || '', key_actions: (current.key_actions || []).slice(0, 3), location_ref: current.location_ref } : null;
               const next = state.outlineBeats[ci + 1];
-              const slimNext = next ? { name: next.name, erotic_phase: next.erotic_phase, sexual_milestone: next.sexual_milestone, tension_level: next.tension_level } : null;
+              const slimNext = next ? { name: next.name, erotic_phase: next.erotic_phase, sexual_milestone: next.sexual_milestone, ejaculation_timing: next.ejaculation_timing || '', tension_level: next.tension_level } : null;
               result.outline = { title: state.outlineTitle || state.outline?.title || '', current_beat: slimBeat, next_beat: slimNext, total_beats: state.outlineBeats.length, current_beat_index: ci, global_rules: current?._global_rules || state.outline?.global_rules || [] };
             } else if (typeof state.outline === 'object' && state.outline?.beats) {
               const ci = state.currentBeatIndex || 0;
               const current = state.outline.beats[ci];
-              const slimBeat = current ? { name: current.name, erotic_phase: current.erotic_phase, tension_level: current.tension_level, sexual_milestone: current.sexual_milestone, key_actions: current.key_actions, location_ref: current.location_ref, transition_to_next: current.transition_to_next, estimated_duration: current.estimated_duration, required_scene_elements: current.required_scene_elements || [] } : null;
+              const slimBeat = current ? { name: current.name, erotic_phase: current.erotic_phase, tension_level: current.tension_level, sexual_milestone: current.sexual_milestone, ejaculation_timing: current.ejaculation_timing || '', key_actions: current.key_actions, location_ref: current.location_ref, transition_to_next: current.transition_to_next, estimated_duration: current.estimated_duration, required_scene_elements: current.required_scene_elements || [] } : null;
               const next = state.outline.beats[ci + 1];
-              const slimNext = next ? { name: next.name, erotic_phase: next.erotic_phase, sexual_milestone: next.sexual_milestone, tension_level: next.tension_level, location_ref: next.location_ref } : null;
+              const slimNext = next ? { name: next.name, erotic_phase: next.erotic_phase, sexual_milestone: next.sexual_milestone, ejaculation_timing: next.ejaculation_timing || '', tension_level: next.tension_level, location_ref: next.location_ref } : null;
               result.outline = { title: state.outline.title || '', current_beat: slimBeat, next_beat: slimNext, total_beats: state.outline.beats.length, current_beat_index: ci, global_rules: state.outline.global_rules || [] };
             } else if (typeof state.outline === 'string' && state.outline.trim()) {
               result.outline = state.outline.slice(0, 1000);
@@ -1721,27 +1737,29 @@
               name: b.name,
               erotic_phase: b.erotic_phase,
               sexual_milestone: b.sexual_milestone,
+              ejaculation_timing: b.ejaculation_timing || '',
               tension_level: b.tension_level,
               is_current: i === (state.currentBeatIndex || 0)
             }));
             return JSON.stringify({ outlineTitle: state.outlineTitle, total: summary.length, currentIndex: state.currentBeatIndex || 0, beats: summary }, null, 2);
+
           }
           if (params.action === 'current') {
             const idx = state.currentBeatIndex || 0;
             const beat = state.outlineBeats[idx];
             if (!beat) return JSON.stringify({ error: 'no current beat', total: state.outlineBeats.length });
-            // 只返回当前节拍关键信息，提示只执行当前
             return JSON.stringify({
               outlineTitle: state.outlineTitle,
               current: { index: idx + 1, total: state.outlineBeats.length },
               beat: {
                 id: beat.id, name: beat.name, erotic_phase: beat.erotic_phase,
                 tension_level: beat.tension_level, sexual_milestone: beat.sexual_milestone,
+                ejaculation_timing: beat.ejaculation_timing || '【MUST】高潮时必含射精标记',
                 key_actions: (beat.key_actions || []).slice(0, 3),
                 location_ref: beat.location_ref,
                 phase_writing_rule: beat.phase_writing_rule || ''
               },
-              instruction: '【重要】只执行当前这一个节拍。不要跳到下一节拍。当前节拍完成后调用 beat_manager action="done" 推进。'
+              instruction: '【重要】只执行当前这一个节拍。不要跳到下一节拍。当前节拍完成后调用 beat_manager action="done" 推进。高潮节拍必须包含射精描写。'
             }, null, 2);
           }
           if (params.action === 'create' && params.beats) {
@@ -1758,7 +1776,8 @@
             const _remaining = _max - params.beats.length;
             const _hint = _remaining > 0 ? ` 还需追加约${_remaining}个节拍才能达到目标范围，请继续调用 beat_manager(action="add")。` : ' 节拍数已接近上限。';
             const titleNote = state.outlineTitle ? '' : ' [WARN] 未提供title！请在下一次调用中补充 title 参数。';
-            return JSON.stringify({ ok: true, total_beats: state.outlineBeats.length, outlineTitle: state.outlineTitle, remaining_to_target: _remaining, instruction: '节拍已创建。' + titleNote + _hint });
+            const ejacNote = ' [NOTE] climax/insertion_early节拍的sexual_milestone和ejaculation_timing必填。高潮节拍必须标记射精。';
+            return JSON.stringify({ ok: true, total_beats: state.outlineBeats.length, outlineTitle: state.outlineTitle, remaining_to_target: _remaining, instruction: '节拍已创建。' + titleNote + ejacNote + _hint });
           }
           if (params.action === 'add') {
             const newBeats = params.beats || (params.beat ? [params.beat] : []);
@@ -1777,7 +1796,7 @@
             } else {
               _note = ` ⚠️ 节拍数${_total}已超出上限${_range.max}！请不要再添加节拍。节拍超量可能导致部分节拍不被执行。`;
             }
-            const addedSummary = newBeats.map(b => ({ id: b.id, name: b.name, phase: b.erotic_phase, milestone: b.sexual_milestone }));
+            const addedSummary = newBeats.map(b => ({ id: b.id, name: b.name, phase: b.erotic_phase, milestone: b.sexual_milestone, ejaculation_timing: b.ejaculation_timing || '' }));
             return JSON.stringify({ ok: true, total_beats: _total, beat_target: _range, note: _note, added: addedSummary });
           }
           if (params.action === 'start' && params.beat_id) {
@@ -1931,6 +1950,33 @@
           try { return JSON.parse(str); } catch (e) { return null; }
         }
         
+        /* ================== 工具请求文本容错捕获 ================== */
+        function cleanToolCallsFromText(text) {
+          if (!text) return text;
+          // Pattern 1: inline tool function calls like recall_context({...}) or scene_manager({...})
+          let cleaned = text.replace(/(recall_context|scene_manager|beat_manager|character_select)\s*\(\s*\{[^}]*\}\s*\)\s*/gi, '');
+          // Pattern 2: tool calls without JSON params
+          cleaned = cleaned.replace(/(recall_context|scene_manager|beat_manager|character_select)\s*\([^)]*\)\s*/gi, '');
+          // Pattern 3: JSON blocks containing tool_call or function definitions
+          cleaned = cleaned.replace(/```(?:json)?[\s\S]*?"(?:function|tool_calls|tool_call_id)"[\s\S]*?```/gi, '');
+          // Pattern 4: standalone tool JSON objects {"function":{...}} — 含空对象
+          cleaned = cleaned.replace(/\{\s*"function"\s*:\s*\{[^}]*\}\s*\}\s*,?\s*/gi, '');
+          // Pattern 5: <tool_call> / <function> XML tags with content
+          cleaned = cleaned.replace(/<\|?(tool_call|function|invoke|tool_response)\|?>[\s\S]*?<\/\|?(tool_call|function|invoke|tool_response)\|?>/gi, '');
+          // Pattern 6: lines starting with tool name in bullet lists or standalone
+          cleaned = cleaned.replace(/^[\s]*[-*\d\.\s]*\s*(recall_context|scene_manager|beat_manager|character_select)\b[^\n]*\n?/gmi, '');
+          // Pattern 7: think/reason tags that may contain tool planning
+          cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, '');
+          cleaned = cleaned.replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '');
+          // Pattern 8: lines with "tool_use" or "tool_result" markers
+          cleaned = cleaned.replace(/^.*?\[?(tool_use|tool_result|tool_call|function_call)\]?:?[^\n]*\n?/gmi, '');
+          // Pattern 9: common thinking/reasoning block patterns — 也匹配文本末尾无换行的情况
+          cleaned = cleaned.replace(/^(?:思考|推理|内部|规划|计划)[：:][\s\S]*?(?=\n(?!\s*(?:思考|推理|内部|规划|计划)[：:])|$)/gmi, '');
+          cleaned = cleaned.replace(/ {3,}/g, '  ');
+          cleaned = cleaned.replace(/\n{4,}/g, '\n\n\n');
+          return cleaned.trim();
+        }
+        
         function buildCardInjectionBlock(isEarly) {
           if (!state.activeCards?.length) return '';
           let cc = '【角色卡】\n';
@@ -2051,7 +2097,7 @@
             // 限制key_actions到最多3条，防止AI一次性执行过多
             const actions = (currentBeat.key_actions || []).slice(0, 3);
             ctx += '关键动作（按顺序执行，完成当前即止）:\n' + actions.map((a, i) => `${i + 1}. ${a}`).join('\n') + '\n';
-            ctx += `性里程碑: ${currentBeat.sexual_milestone || '无'}\n地点引用: ${currentBeat.location_ref || '无'}\n`;
+            ctx += `性里程碑: ${currentBeat.sexual_milestone || '无'}\n射精时机: ${currentBeat.ejaculation_timing || '【高潮时必射】'}\n地点引用: ${currentBeat.location_ref || '无'}\n`;
             const resolvedFields1 = resolveCardFields(currentBeat.required_card_fields || []);
             ctx += `【预载角色卡数据——无需调工具查询】\n${resolvedFields1 || '无'}\n`;
             ctx += `需要激活的世界书条目: ${(currentBeat.required_world_entries || []).join(', ') || '无'}\n`;
@@ -2403,7 +2449,8 @@
                   const deltaObj = chunk.choices?.[0]?.delta;
                   if (deltaObj?.content) {
                     fullContent += deltaObj.content;
-                    if (options.onChunk) options.onChunk({ delta: deltaObj.content, full: fullContent });
+                    const cleanedFull = cleanToolCallsFromText(fullContent);
+                    if (options.onChunk) options.onChunk({ delta: deltaObj.content, full: cleanedFull });
                   }
                 } catch (e) { debugLog('[流式解析异常] ' + e.message + ' | raw=' + trimmed.slice(0,80)); }
               }
@@ -2419,7 +2466,8 @@
                     const deltaObj = chunk.choices?.[0]?.delta;
                     if (deltaObj?.content) {
                       fullContent += deltaObj.content;
-                      if (options.onChunk) options.onChunk({ delta: deltaObj.content, full: fullContent });
+                      const cleanedFull = cleanToolCallsFromText(fullContent);
+                      if (options.onChunk) options.onChunk({ delta: deltaObj.content, full: cleanedFull });
                     }
                   } catch (e) { debugLog('[残余buffer解析异常] ' + e.message); }
                 }
@@ -2446,9 +2494,9 @@
                 const fbData = await fbRes.json();
                 const fbContent = fbData.choices?.[0]?.message?.content || '';
                 if (fbContent) {
-                  fullContent = fbContent;
-                  if (options.onChunk) options.onChunk({ delta: fbContent, full: fbContent });
-                  debugLog('[流式] 回退非流式成功，获得' + fbContent.length + '字符');
+                  fullContent = cleanToolCallsFromText(fbContent);
+                  if (options.onChunk) options.onChunk({ delta: fullContent, full: fullContent });
+                  debugLog('[流式] 回退非流式成功，获得' + fullContent.length + '字符');
                 } else {
                   debugLog('[流式] 回退非流式也无内容');
                 }
@@ -2466,6 +2514,7 @@
             saveState();
           }
           if (state.abortController === controller) state.abortController = null;
+          fullContent = cleanToolCallsFromText(fullContent);
           return fullContent;
         
           } catch (e) {
