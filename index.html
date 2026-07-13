@@ -2762,6 +2762,10 @@
         }
         
         async function startGame() {
+          // 重置结构化场景，防止重开时污染
+          state.sceneState = { character_positions: {}, current_action: '', beat_progress: 0, milestone_completed: false };
+          // 重置压缩阈值基准，避免旧游戏的大 prompt 值污染新游戏
+          state.lastPromptTokens = 0;
           const activeCards = getActiveCards();
           if (!activeCards.length) { toast('请先导入角色卡'); return; }
           showLoading(); updateLoading('正在生成大纲...', 5);
@@ -3529,6 +3533,8 @@ ${_existing}
               state.summaryBlocks = [];
               state.gameStarted = false;
               state.currentOptions = [];
+              state.lastPromptTokens = 0;
+              state.sceneState = { character_positions: {}, current_action: '', beat_progress: 0, milestone_completed: false };
               updateUI();
               saveState();
             }
@@ -3927,6 +3933,8 @@ ${_existing}
             const chk = id => document.getElementById(id).checked;
             if (chk('rstAll') || chk('rstOutline')) {
               state.outline = ''; state.history = []; state.gameStarted = false; state.summaryBlocks = []; state.currentOptions = [];
+              state.lastPromptTokens = 0;
+              state.sceneState = { character_positions: {}, current_action: '', beat_progress: 0, milestone_completed: false };
               state.activeCards = [];
             }
             if (chk('rstAll') || chk('rstCards')) {
