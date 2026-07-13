@@ -735,7 +735,9 @@
           models: ['deepseek-v4-flash', 'deepseek-v4-pro'],
           reasoningEffort: 'high',
           apiMaxTokens: 384000,
+          compressionThreshold: 664000,
           cumulativeTokens: 0,
+          lastPromptTokens: 0,       // 上次 API 返回的实际 prompt_tokens（精确值）
           narrativeModule: JSON.parse(JSON.stringify(DEFAULT_NARRATIVE_MODULE)),
           narrativePresets: { default: JSON.parse(JSON.stringify(DEFAULT_NARRATIVE_MODULE)) },
           cards: [],               // 全部角色卡（管理用）
@@ -843,6 +845,8 @@
             if (!state.currentOptions) state.currentOptions = [];
             if (!state.reasoningEffort) state.reasoningEffort = 'high';
             if (!state.apiMaxTokens) state.apiMaxTokens = 384000;
+            if (!state.compressionThreshold) state.compressionThreshold = 664000;
+            if (!state.lastPromptTokens && state.lastPromptTokens !== 0) state.lastPromptTokens = 0;
             if (state.cumulativeTokens === undefined) state.cumulativeTokens = 0;
             if (!state.worldBooks) state.worldBooks = [];
             if (!state.activeWorldBooks) state.activeWorldBooks = [];
@@ -2082,6 +2086,17 @@
           return wb;
         }
         
+        /* ================== 数据注入：角色卡+世界书 → 固定 user 消息 ================== */
+        function buildDataInjectionMessage() {
+          let content = '';
+          const cardBlock = buildCardInjectionBlock(true);
+          if (cardBlock) content += cardBlock + '\n';
+          const wbBlock = buildWorldInjectionBlock();
+          if (wbBlock) content += wbBlock + '\n';
+          return content || null;
+        }
+        
+        
         // [MUST] 预解析角色卡字段路径 → 值，供上下文注入使用
         function resolveCardFields(fieldPaths) {
           if (!fieldPaths || !fieldPaths.length || !state.activeCards?.length) return '';
@@ -2187,9 +2202,7 @@
             const nextBeat = state.outlineBeats[nextIdx];
             const msg = `场景节拍推进 → 第${nextIdx + 1}/${state.outlineBeats.length}节: ${nextBeat?.name || '未命名'}`;
             debugLog(msg);
-            if (nextBeat) {
-              state.history.push({ role: 'system', content: buildOutlineContext() });
-            }
+            // 节拍信息在请求时由 buildOutlineContext() 实时提供，不注入 history——保持 KV 前缀稳定
             saveState();
           } else {
             debugLog('所有节拍已完成');
@@ -2236,9 +2249,7 @@
             const nextBeat = state.outline.beats[state.currentBeatIndex];
             const msg = `场景节拍推进 → 第${state.currentBeatIndex + 1}/${state.outline.beats.length}节: ${nextBeat?.name || '结束'}`;
             debugLog(msg);
-            if (nextBeat) {
-              state.history.push({ role: 'system', content: buildOutlineContext() });
-            }
+            // 节拍信息由 buildOutlineContext() 实时提供，不注入 history
             saveState();
             return true;
           }
@@ -2394,14 +2405,17 @@
               try { const e = await res.json(); errMsg = e.error?.message || errMsg; } catch (e) {}
               const err = new Error('API错误: ' + errMsg);
               err.status = res.status;
-              throw err;
             }
             const data = await res.json();
             const msg = data.choices?.[0]?.message;
             const usage = data.usage || {};
+            // 仅叙事调用记录 prompt_tokens（选项生成/压缩/训练等调用不污染此值）
+            if (usage.prompt_tokens && agentType === 'narrative') {
+              state.lastPromptTokens = usage.prompt_tokens;
+            }
             const used = (usage.prompt_tokens || 0) + (usage.completion_tokens || 0);
             if (trackUsage && used) { state.cumulativeTokens += used; updateCumulativeDisplay(); saveState(); }
-        
+
             if (msg?.tool_calls?.length) {
               debugLog(`[工具调用] ${msg.tool_calls.map(t => t.function.name).join(',')}`);
               currentMessages.push({ role: 'assistant', content: msg.content || '', tool_calls: msg.tool_calls });
@@ -2829,17 +2843,15 @@ ${_existing}
             const storyMessages = [
               { role: 'system', content: narrativeSys }
             ];
-            const cardBlock = buildCardInjectionBlock(true);
-            if (cardBlock) storyMessages.push({ role: 'system', content: cardBlock });
-            // 动态上下文归入 user
+            // 数据注入：角色卡+世界书 → 固定 user 消息（不随对话轮次变化）
+            const dataMsg = buildDataInjectionMessage();
+            if (dataMsg) storyMessages.push({ role: 'user', content: dataMsg });
+            // 大纲上下文（当前节拍信息）
             let userCtx = '';
-            const wbBlock = buildWorldInjectionBlock();
-            if (wbBlock) userCtx += wbBlock + '\n';
             if (state.outlineBeats.length) userCtx += buildOutlineContext() + '\n';
-            if (state.summaryBlocks.length) userCtx += '早期剧情摘要:\n' + state.summaryBlocks.join('\n---\n') + '\n';
+            // 开头指令（仅首次生成）
             userCtx += '写故事开头。第一步：从世界书提取当前场景的空间锚点（地点、时间、光线、气味、温度、关键物件），第一段先建立场景氛围。第二步：让角色在场景中自然着陆——她现在靠在什么上面、站在哪里、在做什么。第三步：通过角色的身体状态、动作、环境的交互（光打在她皮肤上、空气的潮气黏在她身上等），用场景把角色卡的身体数据（体温、体味、敏感度等）带出来。不要列清单式介绍角色，让角色活在场景里。直接叙述，不准写系统消息或AI确认。';
             storyMessages.push({ role: 'user', content: userCtx });
-            hideLoading();
             const storyEl = document.getElementById('storyMessages');
             const streamMsgEl = document.createElement('div');
             streamMsgEl.className = 'story-msg';
@@ -2936,14 +2948,18 @@ ${_existing}
             const narrativeSys = buildNarrativeSystemMessage();
             const chatMessages = state.history.filter(m => m.role !== 'system');
             const fullMessages = [{ role: 'system', content: narrativeSys }];
-            const cardBlock = buildCardInjectionBlock(true);
-            if (cardBlock) fullMessages.push({ role: 'system', content: cardBlock });
+            // 数据注入：角色卡+世界书 → 固定 user 消息（不随对话轮次变化）
+            const dataMsg = buildDataInjectionMessage();
+            if (dataMsg) fullMessages.push({ role: 'user', content: dataMsg });
+            // 大纲上下文（当前节拍信息）
             let userCtx = '';
-            const wbBlock = buildWorldInjectionBlock();
-            if (wbBlock) userCtx += wbBlock + '\n';
             if (state.outlineBeats?.length || state.outline) userCtx += buildOutlineContext() + '\n';
-            if (state.summaryBlocks.length) userCtx += '早期剧情摘要:\n' + state.summaryBlocks.join('\n---\n') + '\n';
             if (userCtx) fullMessages.push({ role: 'user', content: userCtx });
+            // 压缩后的历史摘要（时间顺序：摘要最早 → 保留原文较新 → 当前输入最新）
+            if (state.summaryBlocks.length) {
+              fullMessages.push({ role: 'user', content: '=== 历史摘要 ===\n' + state.summaryBlocks.join('\n---\n') });
+            }
+            // 保留的原始对话（参与压缩的历史）
             fullMessages.push(...chatMessages);
             streamMsgEl = document.createElement('div');
             streamMsgEl.className = 'story-msg';
@@ -3012,15 +3028,18 @@ ${_existing}
             const narrativeSys = buildNarrativeSystemMessage();
             const chat = state.history.filter(m => m.role !== 'system');
             const fullMessages = [{ role: 'system', content: narrativeSys }];
-            const cardBlock = buildCardInjectionBlock(true);
-            if (cardBlock) fullMessages.push({ role: 'system', content: cardBlock });
-            // 动态上下文归入 user
+            // 数据注入：角色卡+世界书 → 固定 user 消息（不随对话轮次变化）
+            const dataMsg = buildDataInjectionMessage();
+            if (dataMsg) fullMessages.push({ role: 'user', content: dataMsg });
+            // 大纲上下文（当前节拍信息）
             let userCtx = '';
-            const wbBlock = buildWorldInjectionBlock();
-            if (wbBlock) userCtx += wbBlock + '\n';
             if (state.outlineBeats?.length || state.outline) userCtx += buildOutlineContext() + '\n';
-            if (state.summaryBlocks.length) userCtx += '早期摘要:\n' + state.summaryBlocks.join('\n---\n') + '\n';
             if (userCtx) fullMessages.push({ role: 'user', content: userCtx });
+            // 压缩后的历史摘要（时间顺序：摘要最早 → 保留原文较新 → 当前输入最新）
+            if (state.summaryBlocks.length) {
+              fullMessages.push({ role: 'user', content: '=== 历史摘要 ===\n' + state.summaryBlocks.join('\n---\n') });
+            }
+            // 保留的原始对话（参与压缩的历史）
             fullMessages.push(...chat);
             streamMsgEl = document.createElement('div');
             streamMsgEl.className = 'story-msg';
@@ -3068,15 +3087,41 @@ ${_existing}
           } finally { isProcessing = false; }
         }
         
+        /* ================== 压缩阈值估算 ================== */
+        function estimatePromptGrowth() {
+          /* 估算本轮 prompt tokens：
+             基础 = 上次 API 精确返回的 usage.prompt_tokens
+             增量 = 上次之后新增的内容：
+               - 上轮 AI 输出（已追加到 history）
+               - 本轮用户新输入（已追加到 history）
+               - userCtx 变动（节拍推进后大纲内容变化）
+             lastPromptTokens 已包含 dataMsg + 旧 userCtx + 旧历史
+             所以只加新增部分，不加固定注入部分
+             中文 ≈ 字符数 × 1.8
+             返回：本轮预估总 prompt tokens（含 15% 安全余量）
+           */
+          let base = state.lastPromptTokens || 0;
+          // 新增：history 中上轮之后追加的内容（assistant输出 + 新user输入）
+          const chatHistory = state.history.filter(m => m.role !== 'system');
+          const recentNew = chatHistory.slice(-2);
+          for (const msg of recentNew) {
+            if (msg.content) base += Math.ceil(msg.content.length * 1.8);
+          }
+          // 安全余量 15%
+          return Math.ceil(base * 1.15);
+        }
+        
         
         async function checkAndSliceHistory() {
-          const apiMax = state.apiMaxTokens || 384000;
-          if (state.cumulativeTokens < apiMax) return;
+          const threshold = state.compressionThreshold || 664000;
+          // 估算本轮 prompt 总大小（上轮 API 精确值 + 新增内容）
+          const estimatedPrompt = estimatePromptGrowth();
+          if (estimatedPrompt < threshold) return;
           const chatMessages = state.history.filter(m => m.role !== 'system');
           if (!chatMessages.length) return;
           const KEEP_EXACT = 6;
           if (chatMessages.length <= KEEP_EXACT + 2) return;
-          debugLog(`累计Token达${(state.cumulativeTokens/1000).toFixed(0)}K，触发压缩历史...`);
+          debugLog(`预估 prompt ${(estimatedPrompt/1000).toFixed(0)}K ≥ 阈值 ${(threshold/1000).toFixed(0)}K，触发压缩...`);
           const exactMessages = chatMessages.slice(-KEEP_EXACT);
           const toSummarize = chatMessages.slice(0, -KEEP_EXACT);
           if (!toSummarize.length) return;
@@ -3091,10 +3136,9 @@ ${_existing}
           state.summaryBlocks.push(`${label}:\n${summary}`);
           const systemMessages = state.history.filter(m => m.role === 'system');
           state.history = [...systemMessages, ...exactMessages];
-          state.cumulativeTokens = Math.floor(state.cumulativeTokens * 0.25);
-          updateCumulativeDisplay();
+          state.lastPromptTokens = Math.floor(estimatedPrompt * 0.3);
           saveState();
-          debugLog(`压缩完成。保留最近${exactMessages.length}条原文 + ${systemMessages.length}条系统消息，累计token重置为${(state.cumulativeTokens/1000).toFixed(0)}K`);
+          debugLog(`压缩完成。保留最近${exactMessages.length}条原文，lastPromptTokens 重置为${state.lastPromptTokens}`);
         }
         
         
@@ -4075,6 +4119,8 @@ ${_existing}
         if (!state.reasoningEffort) state.reasoningEffort = 'high';
         if (!state.apiMaxTokens) state.apiMaxTokens = 384000;
         if (state.cumulativeTokens === undefined) state.cumulativeTokens = 0;
+        if (!state.lastPromptTokens && state.lastPromptTokens !== 0) state.lastPromptTokens = 0;
+        if (!state.compressionThreshold) state.compressionThreshold = 664000;
         if (!state.narrativeModule) state.narrativeModule = JSON.parse(JSON.stringify(DEFAULT_NARRATIVE_MODULE));
         if (!state.activeCards) state.activeCards = [];
         if (!state.currentOptions) state.currentOptions = [];
