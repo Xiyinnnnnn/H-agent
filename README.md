@@ -1,5 +1,3 @@
-
-https://xiyinnnnnn.github.io/H-agent/index.html
 # H-agent
 
 > 单文件超轻量 AI 情色叙事引擎 × 六项越狱技术融合 × 工具调用长程记忆 × V4 结构化角色/世界系统
