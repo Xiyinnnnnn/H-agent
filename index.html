@@ -1730,7 +1730,6 @@
           if (params.action === 'advance') {
             state.sceneState.milestone_completed = true;
             state.sceneState.beat_progress = (state.sceneState.beat_progress || 0) + 1;
-            doAdvanceBeat();
             saveState();
             return JSON.stringify({ ok: true, advanced: true, sceneState: state.sceneState, currentBeatIndex: state.currentBeatIndex });
           }
@@ -2211,46 +2210,11 @@
         
         
         function maybeAdvanceBeat(storyText) {
-          // 优先检测 sceneState 里程碑
+          // 仅由AI通过 scene_manager action="advance" 推动节拍
           if (state.sceneState?.milestone_completed) {
             debugLog('[节拍推进] 检测到 milestone_completed，执行推进');
             doAdvanceBeat();
             state.sceneState.milestone_completed = false;
-            return true;
-          }
-        
-          // 兼容 outlineBeats 新格式
-          if (state.outlineBeats?.length) {
-            const currentBeat = state.outlineBeats[state.currentBeatIndex || 0];
-            if (!currentBeat) return false;
-            const recentAssistants = state.history.filter(m => m.role === 'assistant').slice(-3);
-            const recentWords = recentAssistants.reduce((sum, m) => sum + (m.content?.length || 0), 0);
-            const threshold = currentBeat.estimated_words || 3000;
-            if (recentWords >= threshold) {
-              doAdvanceBeat();
-              return true;
-            }
-            return false;
-          }
-        
-          // 兼容旧 outline.beats 格式
-          if (!state.outline?.beats) return false;
-          const currentBeat = state.outline.beats[state.currentBeatIndex || 0];
-          if (!currentBeat) return false;
-        
-          const recentAssistants = state.history
-            .filter(m => m.role === 'assistant')
-            .slice(-3);
-          const recentWords = recentAssistants.reduce((sum, m) => sum + (m.content?.length || 0), 0);
-        
-          const threshold = currentBeat.estimated_words || 3000;
-          if (recentWords >= threshold) {
-            state.currentBeatIndex = (state.currentBeatIndex || 0) + 1;
-            const nextBeat = state.outline.beats[state.currentBeatIndex];
-            const msg = `场景节拍推进 → 第${state.currentBeatIndex + 1}/${state.outline.beats.length}节: ${nextBeat?.name || '结束'}`;
-            debugLog(msg);
-            // 节拍信息由 buildOutlineContext() 实时提供，不注入 history
-            saveState();
             return true;
           }
           return false;
