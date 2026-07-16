@@ -267,6 +267,7 @@
                     <div class="field-row"><select id="convertFormatSelect" style="flex:1;">
                             <option value="auto">自动检测格式</option>
                             <option value="sillytavern">SillyTavern V2 角色卡</option>
+                            <option value="sillytavern_v3">SillyTavern V3 角色卡 (chara_card_v3)</option>
                             <option value="character_ai">Character.AI 角色定义</option>
                             <option value="chub_venus">Chub / Venus AI</option>
                             <option value="risuai">RisuAI</option>
@@ -300,6 +301,10 @@
                             <div style="flex:1;">
                                 <div id="convertWorldCount" class="text-xs" style="color:#7a5cf0;"></div><textarea id="convertResultWorld" rows="8" class="code-area" readonly style="min-height:100px;font-size:12px;"></textarea>
                             </div>
+                        </div>
+                        <div id="convertValidationReport" class="hidden mt-8" style="background:#111;border:1px solid #2a2a2a;border-radius:8px;padding:10px;">
+                            <div class="text-sm" style="color:#7a5cf0;font-weight:600;margin-bottom:6px;">📋 转换校验报告</div>
+                            <div id="convertValidationContent" class="text-xs" style="color:#aaa;max-height:100px;overflow-y:auto;line-height:1.6;"></div>
                         </div>
                         <div class="field-row mt-8"><button id="convertSaveCardBtn" class="btn-sm btn-primary hidden">保存角色卡</button><button id="convertSaveWorldBtn" class="btn-sm btn-primary hidden">保存世界书</button><button id="convertClearBtn" class="btn-sm">清除结果</button></div>
                     </div>
@@ -3748,10 +3753,11 @@ ${_existing}
           // === 第三方格式转换器 ===
           let convertPendingData = null;
         
-          function buildConvertPrompt(rawInput, format, target) {
+          function buildConvertPrompt(rawInput, format, target, prefilled) {
             const formatHints = {
               auto: '输入格式未知。从JSON结构或文本特征自动判定。',
-              sillytavern: '输入=SillyTavern V2 角色卡JSON。字段: name,description,personality,scenario,first_mes,mes_example。',
+              sillytavern: '输入=SillyTavern V2 角色卡JSON(chara_card_v2)。含name,description,personality,scenario,first_mes,mes_example,system_prompt,post_history_instructions,alternate_greetings,tags,creator,creator_notes,character_version,character_book(嵌入世界书),extensions。',
+              sillytavern_v3: '输入=SillyTavern V3 角色卡JSON(chara_card_v3)。完全兼容V2全部字段，新增: assets(表情/图标/背景),nickname,creator_notes_multilingual,source,group_only_greetings,creation_date,modification_date。character_book为结构化Lorebook对象。',
               character_ai: '输入=Character.AI角色定义文本。字段: name,description,greeting。',
               chub_venus: '输入=Chub/Venus角色卡JSON。字段: name,description,personality,first_mes,example_dialogs。',
               risuai: '输入=RisuAI角色卡格式。',
@@ -3765,26 +3771,174 @@ ${_existing}
               worldbook: '强制输出worldbook。card留null。',
               both: '必须同时输出card和worldbook。'
             };
+            let prefilledBlock = '';
+            if (prefilled) {
+              if (prefilled.card) {
+                for (const k of Object.keys(prefilled.card)) {
+                  const v = prefilled.card[k];
+                }
+              }
+              prefilledBlock = '\\n\\n=== 已精确提取字段（直接使用，无需修改）===\\n'
+                + JSON.stringify(prefilled, null, 2)
+                + '\\n\\n以上字段已从原始数据中精确解析，直接保留。仅需补充以下缺口：\\n'
+                + '1. physical身体数据（从description/文本推断）\\n'
+                + '2. erogenous_zones（从性格/描述推断）\\n'
+                + '3. sexual_preferences（从性格/行为推断）\\n'
+                + '4. speech/vocabulary/口癖（从对话样例提取）\\n'
+                + '5. personality子字段（when_shy/when_aroused/when_orgasm等）\\n'
+                + '6. bans（从角色限制推断）\\n'
+                + '7. behavior/mes_example格式整理\\n';
+            }
             return {
               system: BASE_SYSTEM_PROMPT,
-              user: `convert | v4 | json_only
-        
-        输入→V4标准格式。禁额外文本。
-        
-        in: ${formatHints[format] || formatHints.auto}
-        out: ${targetHints[target] || targetHints.auto}
-        
-        card_tpl: ${JSON.stringify(CARD_TEMPLATE_BASE, null, 2)}
-        world_tpl: ${JSON.stringify(WORLD_ENTRY_TEMPLATE, null, 2)}
-        
-        → out_json | {"card":{...}|null, "worldbook":{...}|null}
-        → card_map | name→name | desc→personality.summary | scenario→scenario | first_mes→first_mes
-          mes_example→{{user}}:...\\n{{char}}:... | 身体外观→physical(不明确强制推断)
-        → world_map | NovelAI keys→triggers | insertion_order→priority(1000-order) | WUBBY key→name
-        → rule | card和worldbook至少一个≠null | 简体中文 | 性器官直白术语
-        
-        输入:\n${rawInput}\n只输出JSON。`
+              user: 'convert | v4 | json_only\\n\\n输入→V4标准格式。禁额外文本。\\n\\n'
+                + 'in: ' + (formatHints[format] || formatHints.auto) + '\\n'
+                + 'out: ' + (targetHints[target] || targetHints.auto) + '\\n'
+                + (prefilledBlock)
+                + '\\ncard_tpl: ' + JSON.stringify(CARD_TEMPLATE_BASE, null, 2) + '\\n'
+                + '\\nworld_tpl: ' + JSON.stringify(WORLD_ENTRY_TEMPLATE, null, 2) + '\\n'
+                + '\\n→ out_json | {"card":{...}|null, "worldbook":{...}|null}\\n'
+                + '→ card_map | name→name | desc→personality.summary | scenario→scenario | first_mes→first_mes\\n'
+                + '  mes_example→{{user}}:...\\\\n{{char}}:... | 身体外观→physical(不明确强制推断)\\n'
+                + '  【SillyTavern V3】nickname→aliases | character_book→worldbook | assets→extensions.assets\\n'
+                + '  【SillyTavern V3】group_only_greetings→合并到alternate_greetings\\n'
+                + '→ world_map | NovelAI keys→triggers | insertion_order→priority(1000-order) | WUBBY key→name\\n'
+                + '  【SillyTavern V3】character_book.entries[].keys→triggers | insertion_order→priority | use_regex→保留 | constant→保留\\n'
+                + '→ rule | card和worldbook至少一个≠null | 简体中文 | 性器官直白术语\\n'
+                + '\\n输入:\\n' + rawInput + '\\n只输出JSON。'
             };
+          }
+          function parseSillyTavernV3(rawInput) {
+            let parsed;
+            try { parsed = JSON.parse(rawInput); } catch (e) { return null; }
+            var isV3 = parsed.spec === 'chara_card_v3' || parsed.spec === 'chara_card_v2';
+            if (!isV3 && !parsed.name && !parsed.data) return null;
+            var data = parsed.data || parsed;
+            if (!data.name) return null;
+            // ← 只收集实际提取的字段，不克隆全模板（避免Merge时覆盖LLM推断值）
+            var card = {};
+            card.name = data.name || '';
+            if (data.scenario) card.scenario = data.scenario;
+            if (data.first_mes) card.first_mes = data.first_mes;
+            if (data.system_prompt) card.system_prompt = data.system_prompt;
+            if (data.post_history_instructions) card.post_history_instructions = data.post_history_instructions;
+            if (data.creator) card.creator = data.creator;
+            if (data.creator_notes) card.creator_notes = data.creator_notes;
+            if (data.character_version) card.character_version = data.character_version;
+            if (data.tags && data.tags.length) card.tags = data.tags;
+            if (data.alternate_greetings && data.alternate_greetings.length) card.alternate_greetings = data.alternate_greetings;
+            if (data.nickname) { card.aliases = [data.nickname]; }
+            if (data.group_only_greetings && data.group_only_greetings.length) {
+              var merged = (data.alternate_greetings || []).slice();
+              data.group_only_greetings.forEach(function(g) { if (merged.indexOf(g) < 0) merged.push(g); });
+              card.alternate_greetings = merged;
+            }
+            if (data.mes_example) card.mes_example = data.mes_example;
+            if (data.description) {
+              card.personality = card.personality || {};
+              card.personality.summary = data.description;
+            }
+            if (data.personality) {
+              card.personality = card.personality || {};
+              var lines = data.personality.split(/\r?\n/).filter(function(l) { return l.trim(); });
+              card.personality.traits = lines.map(function(l) {
+                var ci = l.indexOf(':');
+                if (ci > 0) return { trait: l.substring(0, ci).trim(), context: l.substring(ci + 1).trim() };
+                return { trait: l.trim(), context: '' };
+              });
+            }
+            if (data.extensions && Object.keys(data.extensions).length) card.extensions = JSON.parse(JSON.stringify(data.extensions));
+            if (data.assets && data.assets.length) {
+              if (!card.extensions) card.extensions = {};
+              card.extensions.assets = JSON.parse(JSON.stringify(data.assets));
+            }
+            // 处理世界书：映射V3字段名→normalizeWorldBookResult期望的字段名
+            var worldbook = null;
+            if (data.character_book && data.character_book.entries && data.character_book.entries.length) {
+              var book = JSON.parse(JSON.stringify(data.character_book));
+              book.entries.forEach(function(e) {
+                // V3用keys[]存触发词，normalizeWorldBookResult读triggers
+                if (e.keys && (!e.triggers || !e.triggers.length)) e.triggers = e.keys.slice();
+                if (e.use_regex === undefined) e.use_regex = false;
+                if (e.constant === undefined) e.constant = false;
+              });
+              worldbook = normalizeWorldBookResult(book, book.name || card.name + '的世界书');
+            }
+            return { card: card, worldbook: worldbook, extractedSource: 'SillyTavern V3/V2' };
+          }
+
+          function validateV4Card(card) {
+            if (!card) return { valid: false, issues: ['card为null'], exactFields: [], llmFields: [], defaultFields: [] };
+            var issues = [];
+            var exactFields = [];
+            var llmFields = [];
+            var defaultFields = [];
+            var defaults = JSON.parse(JSON.stringify(CARD_TEMPLATE_BASE));
+            var exactKeys = ['name','scenario','first_mes','system_prompt','post_history_instructions','creator','creator_notes','character_version','tags','alternate_greetings','aliases','mes_example'];
+            for (var i = 0; i < exactKeys.length; i++) {
+              var k = exactKeys[i];
+              if (card[k] !== undefined && card[k] !== '' && !(Array.isArray(card[k]) && card[k].length === 0)) {
+                exactFields.push(k);
+              }
+            }
+            if (card.personality && card.personality.summary) exactFields.push('personality.summary');
+            if (card.extensions && Object.keys(card.extensions).length > 0) exactFields.push('extensions');
+            var physObj = card.physical;
+            if (physObj && typeof physObj === 'object') {
+              var physSubs = ['hair','eyes','face','breasts','waist','hips','buttocks','legs','genitals','body_hair','scent'];
+              for (var pi = 0; pi < physSubs.length; pi++) {
+                var sub = physSubs[pi];
+                if (typeof physObj[sub] !== 'object' || physObj[sub] === null) {
+                  physObj[sub] = JSON.parse(JSON.stringify(defaults.physical[sub] || {}));
+                  defaultFields.push('physical.' + sub);
+                  issues.push('physical.' + sub + ' → 重建默认结构');
+                } else {
+                  var defSub = defaults.physical[sub] || {};
+                  for (var sk in defSub) {
+                    if (physObj[sub][sk] === undefined || physObj[sub][sk] === '' || physObj[sub][sk] === 0) {
+                      physObj[sub][sk] = defSub[sk];
+                      defaultFields.push('physical.' + sub + '.' + sk);
+                    }
+                  }
+                }
+              }
+              var scalarFields = ['height_cm','weight_kg','body_type','skin_tone'];
+              for (var si = 0; si < scalarFields.length; si++) {
+                var sf = scalarFields[si];
+                if (physObj[sf] === undefined || physObj[sf] === '' || physObj[sf] === 0) {
+                  physObj[sf] = defaults.physical[sf];
+                  defaultFields.push('physical.' + sf);
+                }
+              }
+              if (physObj.distinguishing_marks === undefined) {
+                physObj.distinguishing_marks = [];
+                defaultFields.push('physical.distinguishing_marks');
+              }
+            }
+            if (!card.erogenous_zones || card.erogenous_zones.length < 3) {
+              card.erogenous_zones = card.erogenous_zones || [];
+              while (card.erogenous_zones.length < 3) {
+                card.erogenous_zones.push({ zone: '_待补充', level: 5, reaction: '_待补充' });
+              }
+              defaultFields.push('erogenous_zones');
+              issues.push('erogenous_zones → 补充至3项');
+            }
+            if (card.sexual_preferences && card.sexual_preferences.orgasm_pattern) {
+              var op = card.sexual_preferences.orgasm_pattern;
+              var opArrs = ['triggers','signs_approaching','during_orgasm','after_orgasm'];
+              for (var oi = 0; oi < opArrs.length; oi++) {
+                var oa = opArrs[oi];
+                if (!op[oa] || op[oa].length < 2) {
+                  op[oa] = op[oa] || [];
+                  while (op[oa].length < 2) op[oa].push('_待补充');
+                  defaultFields.push('sexual_preferences.orgasm_pattern.' + oa);
+                  issues.push('sexual_preferences.orgasm_pattern.' + oa + ' → 补充至2项');
+                }
+              }
+            }
+            var llmKeys = ['physical','erogenous_zones','sexual_preferences','speech','vocabulary','bans','behavior','outfits','personality.when_shy','personality.when_angry','personality.when_aroused','personality.when_orgasm','personality.flaws','personality.quirks','personality.fears','personality.desires','personality.speech_tone'];
+            for (var li = 0; li < llmKeys.length; li++) llmFields.push(llmKeys[li]);
+            return { valid: defaultFields.length === 0, issues: issues, exactFields: exactFields, llmFields: llmFields, defaultFields: defaultFields };
           }
         
           async function executeConversion(previewOnly) {
@@ -3794,19 +3948,70 @@ ${_existing}
             const target = document.getElementById('convertTargetSelect').value;
             const statusEl = document.getElementById('convertStatus');
             const resultArea = document.getElementById('convertResultArea');
+            const validationReport = document.getElementById('convertValidationReport');
+            const validationContent = document.getElementById('convertValidationContent');
             statusEl.textContent = '转换中...';
-            showLoading(); updateLoading('格式转换中...', 50);
+            showLoading(); updateLoading('格式转换中...', 20);
             try {
-              const p = buildConvertPrompt(rawInput, format, target);
+              // Step 1: Try format-specific parser first
+              let prefilled = null;
+              var parseableFormats = ['sillytavern', 'sillytavern_v3', 'auto'];
+              if (parseableFormats.indexOf(format) >= 0) {
+                updateLoading('尝试精确解析...', 30);
+                prefilled = parseSillyTavernV3(rawInput);
+                if (prefilled) {
+                  debugLog('[格式转换] 精确解析成功: ' + prefilled.extractedSource + ', card=' + !!prefilled.card + ', worldbook=' + !!prefilled.worldbook);
+                } else {
+                  debugLog('[格式转换] 精确解析未命中，回退LLM');
+                }
+              }
+              // Step 2: Build prompt (with prefilled data if available)
+              updateLoading(prefilled ? 'LLM补充缺口字段...' : 'LLM格式转换中...', 50);
+              const p = buildConvertPrompt(rawInput, format, target, prefilled);
               let resp = ''; let converted = null;
               for (let retry = 0; retry < 3; retry++) {
-                if (retry > 0) { debugLog(`[格式转换] 输出无效，重试第${retry}次`); updateLoading(`重试转换...${retry+1}/3`, 30 + retry * 20); }
+                if (retry > 0) { debugLog('[格式转换] 重试第' + (retry + 1) + '次'); updateLoading('重试转换...' + (retry + 1) + '/3', 50 + retry * 15); }
                 resp = await callAPI([{role:'system',content:p.system},{role:'user',content:p.user}], {maxTokens:16384,temperature:0.5,trackUsage:false,enableTools:false});
                 const jsonMatch = resp.match(/\{[\s\S]*\}/);
-                if (jsonMatch) { try { converted = JSON.parse(jsonMatch[0]); break; } catch(e) { debugLog(`[格式转换] 解析失败: ${e.message}`); } }
+                if (jsonMatch) { try { converted = JSON.parse(jsonMatch[0]); break; } catch(e) { debugLog('[格式转换] 解析失败: ' + e.message); } }
               }
               hideLoading();
               if (!converted) { toast('转换失败: 输出无效，已重试3次'); statusEl.textContent = '失败'; return; }
+              // Step 3: Merge prefilled data into LLM output (prefilled takes priority)
+              if (prefilled && prefilled.card && converted.card) {
+                for (var mk in prefilled.card) {
+                  var mv = prefilled.card[mk];
+                  if (mv !== undefined && mv !== '' && !(Array.isArray(mv) && mv.length === 0) && !(typeof mv === 'object' && mv !== null && Object.keys(mv).length === 0)) {
+                    converted.card[mk] = JSON.parse(JSON.stringify(mv));
+                  }
+                }
+              }
+              if (prefilled && prefilled.worldbook && !converted.worldbook) {
+                converted.worldbook = JSON.parse(JSON.stringify(prefilled.worldbook));
+              }
+              // Step 4: Validate V4 card and show report
+              if (converted.card) {
+                var vResult = validateV4Card(converted.card);
+                if (vResult.issues.length > 0) {
+                  debugLog('[格式转换] 校验: ' + vResult.issues.length + '项自动修复');
+                }
+                var reportHtml = '';
+                if (vResult.exactFields.length > 0) {
+                  reportHtml += '<div style=\"color:#5a8cf0;margin-top:4px;\">✅ 精确提取 (' + vResult.exactFields.length + '项): ' + vResult.exactFields.slice(0,10).join(', ') + (vResult.exactFields.length > 10 ? '...' : '') + '</div>';
+                }
+                if (vResult.llmFields.length > 0) {
+                  reportHtml += '<div style=\"color:#c9a030;margin-top:2px;\">🔧 LLM补充 (' + vResult.llmFields.length + '个区域): ' + vResult.llmFields.slice(0,8).join(', ') + (vResult.llmFields.length > 8 ? '...' : '') + '</div>';
+                }
+                if (vResult.defaultFields.length > 0) {
+                  reportHtml += '<div style=\"color:#c0392b;margin-top:2px;\">⚠️ 默认值填充 (' + vResult.defaultFields.length + '项): ' + vResult.defaultFields.slice(0,8).join(', ') + (vResult.defaultFields.length > 8 ? '...' : '') + '</div>';
+                }
+                if (reportHtml) {
+                  validationContent.innerHTML = reportHtml;
+                  validationReport.classList.remove('hidden');
+                } else {
+                  validationReport.classList.add('hidden');
+                }
+              }
               convertPendingData = converted;
               resultArea.classList.remove('hidden');
               if (converted.card) {
@@ -3872,6 +4077,7 @@ ${_existing}
           });
           document.getElementById('convertClearBtn').addEventListener('click', () => {
             document.getElementById('convertResultArea').classList.add('hidden');
+            document.getElementById('convertValidationReport').classList.add('hidden');
             document.getElementById('convertResultCards').value = '';
             document.getElementById('convertResultWorld').value = '';
             document.getElementById('convertCardCount').textContent = '';
