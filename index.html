@@ -878,7 +878,7 @@
         
         /* ================== 系统消息构建 ================== */
         function buildNarrativeSystemMessage() {
-          const prefs = state.preferences;
+          const prefs = state._prefsSnapshot || state.preferences;
         
           // 构建偏好命令块
           let prefsBlock = '\n\n=== 用户偏好（强制遵守） ===\n';
@@ -975,7 +975,7 @@
           prefsBlock += '同时高潮→每人一短句，合并一段轰炸。禁分开写。\n';
           prefsBlock += '\n【禁令】单角色连续>200字无描写 | 简化为一对一轮流 | 概括("轮流""一个接一个") | 角色数量减少 | 结尾角色数≠开头角色数。\n';
         
-          const modStr = JSON.stringify(state.narrativeModule, null, 2);
+          const modStr = JSON.stringify(state._narrModuleSnapshot || state.narrativeModule, null, 2);
           let result = BASE_SYSTEM_PROMPT + '\n\n=== 叙事模块 ===\n' + modStr + '\n' + prefsBlock;
           result += '\n\n=== 工具使用 ===\n';
           result += '以下场景调 recall_context，禁凭记忆/对话历史：\n';
@@ -986,7 +986,7 @@
         }
         
         function buildOutlineSystemMessage() {
-          const pacing = state.narrativeModule?.erotic_pacing || {};
+          const pacing = (state._narrModuleSnapshot || state.narrativeModule)?.erotic_pacing || {};
         
           // 预算——始终注入
           const fp = pacing.foreplay_phase?.word_budget_ratio || '30%';
@@ -1014,7 +1014,7 @@
           }
         
           // 用户偏好——注入
-          const prefs = state.preferences;
+          const prefs = state._prefsSnapshot || state.preferences;
           let prefRef = '';
           const styleMap = {
             '对话体': '以对话为主驱动剧情。每段落对话占比 ≥70%。',
@@ -1087,7 +1087,7 @@
         }
         
         function buildOptionsSystemMessage() {
-          const prefs = state.preferences;
+          const prefs = state._prefsSnapshot || state.preferences;
           let sys = BASE_SYSTEM_PROMPT + '\n';
           sys += `\n=== 选项生成规则 ===\n`;
           sys += `\n【输出格式】每行"- "开头。"[主语]动作描述"。4-8个选项。每项8-15字。[WARN]超15字→无效丢弃。\n`;
@@ -1158,7 +1158,7 @@
             }
           }
           // ★ 叙事风格（变化频率：几乎不变化 → 紧随角色卡）
-          const narrativeStr = JSON.stringify(state.narrativeModule?.author_persona || {}, null, 2);
+          const narrativeStr = JSON.stringify((state._narrModuleSnapshot || state.narrativeModule)?.author_persona || {}, null, 2);
           if (narrativeStr !== '{}') data += `\n### 叙事风格\n${narrativeStr}\n`;
           // ★ 节拍信息（变化频率：仅节拍推进时追加，约2~3轮1次 → 置于稳定数据之后）
           if (state.beatContextLog?.length) {
@@ -2286,7 +2286,7 @@
             }
             msg += '\n';
           }
-          const p = state.preferences;
+          const p = state._prefsSnapshot || state.preferences;
           msg += '→ pref | 违反→大纲无效\n';
           if (p.scenes) msg += `  scene=${p.scenes}\n`;
           if (p.play) msg += `  play=${p.play}(≥1beat体现)\n`;
@@ -2784,6 +2784,9 @@
           state.beatContextLog = [];
           // ★ 清除旧游戏的摘要/大纲日志，防止脏数据污染新游戏（角色卡/世界书是用户配置，不清）
           state.summaryBlocks = []; state.outlineTitle = ''; state.outlineBeats = []; state.outlineContextLog = [];
+          // ★ 冻结当前偏好和叙事模块快照，当前游戏全程使用冻结值，修改偏好不影响已进行中的游戏
+          state._prefsSnapshot = JSON.parse(JSON.stringify(state.preferences));
+          state._narrModuleSnapshot = JSON.parse(JSON.stringify(state.narrativeModule));
           const activeCards = getActiveCards();
           if (!activeCards.length) { toast('请先导入角色卡'); return; }
           showLoading(); updateLoading('正在生成大纲...', 5);
@@ -4233,12 +4236,10 @@ ${_existing}
             const chk = id => document.getElementById(id).checked;
             if (chk('rstAll') || chk('rstOutline')) {
               state.outline = ''; state.history = []; state.gameStarted = false; state.summaryBlocks = []; state.currentOptions = [];
-              state.lastPromptTokens = 0;
-              state.sceneState = { character_positions: {}, current_action: '', beat_progress: 0, milestone_completed: false };
-              // activeCards 由 rstCards 分支处理，此处不清
               state.beatContextLog = []; // ★ 清除节拍上下文日志
               state.outlineContextLog = []; // ★ 清除大纲上下文日志
               state.outlineTitle = ''; state.outlineBeats = []; // ★ 清除大纲标题和节拍列表
+              state._prefsSnapshot = null; state._narrModuleSnapshot = null; // ★ 清除快照，下次startGame重建
             }
 
             if (chk('rstAll') || chk('rstCards')) {
@@ -4250,9 +4251,11 @@ ${_existing}
             if (chk('rstAll') || chk('rstNarrative')) {
               state.narrativeModule = JSON.parse(JSON.stringify(DEFAULT_NARRATIVE_MODULE));
               state.narrativePresets = { default: JSON.parse(JSON.stringify(DEFAULT_NARRATIVE_MODULE)) };
+              state._narrModuleSnapshot = null; // ★ 清除快照
             }
             if (chk('rstAll') || chk('rstPrefs')) {
               state.preferences = { style: '混合体', length: '500', scenes: '', play: '', position: '', limits: '', orgasm: '无要求', cum: '' };
+              state._prefsSnapshot = null; // ★ 清除快照
             }
             if (chk('rstAll') || chk('rstToken')) {
               state.cumulativeTokens = 0; updateCumulativeDisplay();
