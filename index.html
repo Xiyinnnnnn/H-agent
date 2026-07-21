@@ -2716,16 +2716,25 @@
         async function generateOptionsFromContext() {
           const lastAssistant = [...state.history].reverse().find(m => m.role === 'assistant');
           if (!lastAssistant) return ['[我]继续', '[我]换个姿势', '[我]温柔一些'];
-        
-          // ★ 两消息分层结构：
+          // ★ 三消息分层结构:
           //   [0] system: 规则（纯规则，输入不变则字节稳定）
-          //   [1] user:   数据层（节拍/场景/角色卡/叙事风格，含全部上下文）
+          //   [1] user:   数据层（节拍/场景/角色卡/叙事风格）
+          //   [2] user:   最新一轮原文（用户选项+叙事正文，追加在最末尾）
           const optionsSys = buildOptionsSystemMessage();
           const dataMsg = buildOptionsDataMessage();
           const messages = [
             { role: 'system', content: optionsSys },
             { role: 'user', content: dataMsg }
           ];
+          // 追加最新一轮原文块（最近1条user选项+1条assistant叙事）
+          const recentHistory = state.history?.slice(-2) || [];
+          if (recentHistory.length >= 2) {
+            const recentBlock = recentHistory.map(m => {
+              const label = m.role === 'user' ? '[用户]' : '[叙事]';
+              return `${label} ${m.content || ''}`;
+            }).join('\n');
+            messages.push({ role: 'user', content: '=== 最新剧情 ===\n' + recentBlock });
+          }
 
           for (let retry = 0; retry < 3; retry++) {
             try {
