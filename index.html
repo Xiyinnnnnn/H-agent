@@ -146,7 +146,7 @@
                 <option value="off">Off (禁用)</option>
                 <option value="high" selected>High (推荐)</option>
                 <option value="max">Max (最强)</option>
-            </select><label>API MaxToken</label><input type="number" id="apiMaxTokens" value="384000" min="1000" max="500000" step="1000"><label>压缩阈值</label><input type="number" id="apiCompressionThreshold" value="664000" min="1000" max="2000000" step="1000">
+        </select><label>API MaxToken</label><input type="number" id="apiMaxTokens" value="384000" min="1000" max="500000" step="1000"><label>压缩阈值</label><input type="number" id="apiCompressionThreshold" value="900000" min="1000" max="2000000" step="1000">
             <div class="text-sm text-muted mt-8">提示: 可在设置中添加更多模型</div>
             <div class="modal-actions"><button id="apiTestBtn" class="btn-primary">测试连接</button><button id="apiConfirmBtn">确认</button></div>
             <div id="apiTestResult" class="text-sm mt-8" style="color:#888;"></div>
@@ -166,7 +166,7 @@
                             <option value="high">High (推荐)</option>
                             <option value="max">Max (最强)</option>
                         </select></div>
-                    <div class="field-row"><label>API MaxToken</label><input type="number" id="setApiMaxTokens" value="384000" min="1000" max="500000" step="1000" style="flex:1;"></div><div class="field-row"><label>压缩阈值</label><input type="number" id="setCompressionThreshold" value="664000" min="1000" max="2000000" step="1000" style="flex:1;"></div>
+        <div class="field-row"><label>API MaxToken</label><input type="number" id="setApiMaxTokens" value="384000" min="1000" max="500000" step="1000" style="flex:1;"></div><div class="field-row"><label>压缩阈值</label><input type="number" id="setCompressionThreshold" value="900000" min="1000" max="2000000" step="1000" style="flex:1;"></div>
                     <div class="field-row"><label>累计消耗</label><span id="cumulativeTokensDisplay" class="text-sm" style="color:#888;">0</span></div>
                     <div class="field-row"><label>添加模型</label><input type="text" id="newModelName" placeholder="模型名称" style="flex:1;"><button id="addModelBtn" class="btn-sm btn-primary">添加</button></div>
                     <div id="modelListContainer" class="mt-8"></div>
@@ -740,7 +740,7 @@
           models: ['deepseek-v4-flash', 'deepseek-v4-pro'],
           reasoningEffort: 'high',
           apiMaxTokens: 384000,
-          compressionThreshold: 664000,
+          compressionThreshold: 900000,
           cumulativeTokens: 0,
           lastPromptTokens: 0,       // 上次 API 返回的实际 prompt_tokens（精确值）
           narrativeModule: JSON.parse(JSON.stringify(DEFAULT_NARRATIVE_MODULE)),
@@ -762,8 +762,10 @@
           },
           history: [],
           summaryBlocks: [],
+          beatContextLog: [],     // ★ 节拍上下文日志：节拍进入时生成不可变快照，只追加不修改，实现零字节抖动
           gameStarted: false,
           currentOptions: [],      // 当前显示的选项
+          outlineContextLog: [], // 大纲生成历史日志：每次生成追加一条，用于regenerate时追加上下文
           capturedCalls: [],       // agent 调试记录捕获
           debugLogs: [],
           debugEnabled: false,
@@ -846,11 +848,14 @@
             if (!state.narrativeModule) state.narrativeModule = JSON.parse(JSON.stringify(DEFAULT_NARRATIVE_MODULE));
             if (!state.narrativePresets) state.narrativePresets = { default: JSON.parse(JSON.stringify(DEFAULT_NARRATIVE_MODULE)) };
             if (!state.summaryBlocks) state.summaryBlocks = [];
+            if (!state.beatContextLog) state.beatContextLog = [];
+            if (!state.outlineContextLog) state.outlineContextLog = [];
+
             if (!state.activeCards) state.activeCards = [];
             if (!state.currentOptions) state.currentOptions = [];
             if (!state.reasoningEffort) state.reasoningEffort = 'high';
             if (!state.apiMaxTokens) state.apiMaxTokens = 384000;
-            if (!state.compressionThreshold) state.compressionThreshold = 664000;
+          if (!state.compressionThreshold) state.compressionThreshold = 900000;
             if (!state.lastPromptTokens && state.lastPromptTokens !== 0) state.lastPromptTokens = 0;
             if (state.cumulativeTokens === undefined) state.cumulativeTokens = 0;
             if (!state.worldBooks) state.worldBooks = [];
@@ -1082,146 +1087,124 @@
         }
         
         function buildOptionsSystemMessage() {
-          const narrativeStr = JSON.stringify(state.narrativeModule?.author_persona || {}, null, 2);
           const prefs = state.preferences;
-        
-          // 从 outlineBeats / sceneState 提取当前节拍
-          let beatStr = '';
-          const currentIdx = state.currentBeatIndex || 0;
-          if (state.outlineBeats?.length) {
-            const cb = state.outlineBeats[currentIdx];
-            if (cb) {
-              beatStr += `\n### 当前节拍\n`;
-              beatStr += `名称: ${cb.name}\n情色阶段: ${cb.erotic_phase}\n性里程碑: ${cb.sexual_milestone}\n射精时机: ${cb.ejaculation_timing || '【高潮时必射】'}\n`;
-              beatStr += `关键动作: ${(cb.key_actions || []).join('; ')}\n`;
-              beatStr += `禁跳到: ${(state.outlineBeats[currentIdx + 1])?.name || '无'}\n`;
-            }
-          } else if (state.outline?.beats) {
-            // 兼容旧格式
-            const cb = state.outline.beats[currentIdx];
-            if (cb) {
-              beatStr += `\n### 当前节拍\n`;
-              beatStr += `名称: ${cb.name}\n情色阶段: ${cb.erotic_phase}\n性里程碑: ${cb.sexual_milestone}\n射精时机: ${cb.ejaculation_timing || '【高潮时必射】'}\n`;
-              beatStr += `关键动作: ${(cb.key_actions || []).join('; ')}\n`;
-              beatStr += `禁跳到: ${(state.outline.beats[currentIdx + 1])?.name || '无'}\n`;
-            }
+          let sys = BASE_SYSTEM_PROMPT + '\n';
+          sys += `\n=== 选项生成规则 ===\n`;
+          sys += `\n【输出格式】每行"- "开头。"[主语]动作描述"。4-8个选项。每项8-15字。[WARN]超15字→无效丢弃。\n`;
+          sys += `\n【[主语]规则】\n`;
+          sys += `- 每选项必须以[角色名]开头标注执行者。\n`;
+          sys += `- 用户卡角色用[我]标注。\n`;
+          sys += `- AI角色用其名字标注如[林姐]。\n`;
+          sys += `- 格式: "[我]翻身骑上去" "[林姐]在你耳边低语" "[我]把她抱到窗台上"\n`;
+          sys += `- 旧格式（无[主语]）自动视为[我]。\n`;
+          sys += `\n【视角规则】\n`;
+          sys += `- 存在用户卡时≥60%选项以[我]为出发点，其余分配其他角色，各角色选项数大致相等。\n`;
+          sys += `- 无用户卡时多角色混合。\n`;
+          sys += `- 【口癖】选项措辞匹配角色语言风格。用户卡选项用第一人称动作。\n`;
+          sys += `\n【强制规则】\n`;
+          sys += `1. 动词开头。选项=动作简写，不是叙事。禁续写故事。\n`;
+          sys += `2. 禁叙事描写/形容词/心理活动/环境氛围。\n`;
+          sys += `3. 禁以对话为选项(如"说'我喜欢'\")。用动作概括意图(如"用骚话挑逗她")。\n`;
+          sys += `4. 必须推进当前节拍。禁跳下一拍。\n`;
+          sys += `5. 禁违反任何角色hard_limits。\n`;
+          sys += `6. 必须匹配角色性角色(role)和性癖(kinks)。\n`;
+          sys += `7. 选项=动作简写，不是叙事。禁续写故事。禁输出非选项内容。\n`;
+          sys += `8. 【射精规则】当节拍处于climax/buildup阶段时，至少1个选项必须是射精动作。高潮必含射精描写。\n`;
+          sys += `9. 必须多样化: 动作推进/对话发起/环境互动/体位切换各方向分布。\n`;
+          sys += `\n【格式示例（需严格遵循）】\n`;
+          sys += `- [我]翻身骑上去，自己扭腰\n- [我]抓住她的头发拉近距离\n- [林姐]凑过来在你耳边低语\n- [我]把她抱到窗台上\n- [林姐]自己掰开给你看\n`;
+          sys += `\n【用户偏好约束】\n`;
+          if (prefs.cum) {
+            sys += `射精部位: ${prefs.cum}。近高潮选项导向此部位，选项必须明确谁射在何处。\n`;
+          } else {
+            sys += `射精规则: climax/buildup阶段选项必含射精动作。写清谁射、射在哪、射多少。\n`;
           }
+          if (prefs.pace) sys += `节奏: ${prefs.pace}。慢玩→选项必含感官/环境/调情。均衡→动作/感官交替。激烈→体位切换/动作推进/高潮导向。\n`;
+          if (prefs.scenes) sys += `场景: ${prefs.scenes}。选项必含此场景。\n`;
+          if (prefs.play) sys += `玩法: ${prefs.play}。≥2选项含此。\n`;
+          if (prefs.position) sys += `体位: ${prefs.position}。≥1选项含此。\n`;
+          if (prefs.limits) sys += `限制: ${prefs.limits}。选项禁违反。\n`;
+          if (prefs.orgasm !== '无要求') sys += `高潮: ${prefs.orgasm}。选项须推进至高潮。\n`;
+          if (prefs.outlineLength) sys += `时长: ${prefs.outlineLength}。短篇→选项集中推高潮,禁中场休息/场景切换。长篇/史诗→允休息/二次勃起/场景切换/道具。\n`;
+          sys += '\n【用词禁令】选项禁用以下医学/解剖术语：耻骨/括约肌/会阴/前列腺/子宫颈/海绵体/尿道/肛管/耻骨联合。改用动作描述替代。';
+          sys += '\n只输出选项。不输出任何其他内容。';
+          return sys;
+        }
         
-          // 场景快照
-          let sceneStr = '';
-          const ss = state.sceneState || {};
-          sceneStr += `\n### 场景快照\n`;
-          sceneStr += `当前动作: ${ss.current_action || '无'}\n进度: ${ss.beat_progress || 0}\n`;
-          sceneStr += `里程碑完成: ${ss.milestone_completed ? '是' : '否'}\n`;
-          if (ss.character_positions && Object.keys(ss.character_positions).length) {
-            sceneStr += `角色位置: ${JSON.stringify(ss.character_positions)}\n`;
-          }
-        
-          // 提取激活卡片精简数据：role/hard_limits/kinks + 口癖/高潮模式（用于选项措辞匹配）
-          let cardStr = '';
-          let userCardName = '';
-          let otherCardNames = [];
+        /**
+         * buildOptionsDataMessage — 选项Agent数据层
+         * 包含节拍信息、场景快照、角色卡数据、叙事风格
+         * 在角色卡/世界书/偏好不变时不变化 → 与system配合实现零字节抖动前缀
+         */
+        function buildOptionsDataMessage() {
+          let data = '';
+          // ★ 角色卡数据（变化频率：几乎不变化 → 置于最前，稳定性最高）
           if (state.activeCards?.length) {
-            cardStr += '\n### 激活角色卡（选项须遵守其数据）\n';
-            for (let i = 0; i < state.activeCards.length; i++) {
-              const c = state.activeCards[i];
+            data += '\n### 激活角色卡（选项须遵守其数据）\n';
+            for (const c of state.activeCards) {
               const obj = typeof c.content === 'string' ? tryParseJSON(c.content) : c.content;
               if (!obj) continue;
               const isUser = obj.tags && (obj.tags.includes('用户') || obj.tags.includes('本人'));
-              if (isUser) userCardName = obj.name || c.name;
-              else otherCardNames.push(obj.name || c.name);
               const sp = obj.sexual_preferences || {};
               const spk = obj.speech || {};
               const pers = obj.personality || {};
               const orgP = sp.orgasm_pattern || {};
-              cardStr += `${isUser ? '【用户卡-主视角】' : ''}- ${obj.name || c.name}: role=${sp.role || '?'}, hard_limits=[${(sp.hard_limits || []).join(',') || '无'}], kinks=[${(sp.kinks || []).slice(0,5).join(',') || '无'}]`;
-              // 口癖+高潮数据：帮助选项措辞匹配角色语言风格
-              if (spk.style || pers.speech_tone) cardStr += `, 口癖="${spk.style || pers.speech_tone}"`;
-              if ((spk.catchphrases || []).length) cardStr += `, 口头禅=[${spk.catchphrases.slice(0,3).join(',')}]`;
-              if (orgP.average_per_session !== undefined && orgP.average_per_session !== null) cardStr += `, 高潮${orgP.average_per_session}次/回`;
-              if ((orgP.triggers || []).length) cardStr += `, 触发=[${orgP.triggers.slice(0,3).join(',')}]`;
-              cardStr += '\n';
+              data += `${isUser ? '【用户卡-主视角】' : ''}- ${obj.name || c.name}: role=${sp.role || '?'}, hard_limits=[${(sp.hard_limits || []).join(',') || '无'}], kinks=[${(sp.kinks || []).slice(0,5).join(',') || '无'}]`;
+              if (spk.style || pers.speech_tone) data += `, 口癖="${spk.style || pers.speech_tone}"`;
+              if ((spk.catchphrases || []).length) data += `, 口头禅=[${spk.catchphrases.slice(0,3).join(',')}]`;
+              if (orgP.average_per_session !== undefined && orgP.average_per_session !== null) data += `, 高潮${orgP.average_per_session}次/回`;
+              if ((orgP.triggers || []).length) data += `, 触发=[${orgP.triggers.slice(0,3).join(',')}]`;
+              data += '\n';
             }
           }
-        
-          let extra = `\n\n=== 选项生成命令 ===\n`;
-          const optMax = userCardName ? (5 + otherCardNames.length * 3) : 5;
-          extra += `\n【输出格式】每行"- "开头。"[主语]动作描述"。${userCardName ? '4-' + optMax : '3-5'}个选项。每项8-15字。[WARN]超15字→无效丢弃。\n`;
-          extra += `\n【[主语]规则】\n`;
-          extra += `- 每选项必须以[角色名]开头标注执行者。\n`;
-          extra += `- 用户卡角色用[我]标注。\n`;
-          extra += `- AI角色用其名字标注如[林姐]。\n`;
-          extra += `- 格式: "[我]翻身骑上去" "[林姐]在你耳边低语" "[我]把她抱到窗台上"\n`;
-          extra += `- 旧格式（无[主语]）自动视为[我]。\n`;
-          extra += `\n【强制规则】\n`;
-          extra += `1. 动词开头。选项=动作简写，不是叙事。禁续写故事。\n`;
-          extra += `2. 禁叙事描写/形容词/心理活动/环境氛围。\n`;
-          extra += `3. 禁以对话为选项(如"说'我喜欢'\")。用动作概括意图(如"用骚话挑逗她")。\n`;
-          extra += `4. 必须推进当前节拍。禁跳下一拍。\n`;
-          extra += `5. 禁违反任何角色hard_limits。\n`;
-          extra += `6. 必须匹配角色性角色(role)和性癖(kinks)。\n`;
-          extra += `11. 选项=动作简写，不是叙事。禁续写故事。禁输出非选项内容。\n`;
-          extra += `12. 【射精规则】当节拍处于climax/buildup阶段时，至少1个选项必须是射精动作(如"[我]射在她里面" "[林姐]用嘴接住")。高潮必含射精描写，没有射精选项就跳过了关键环节。\n`;
-          extra += `8. 必须多样化: 动作推进/对话发起/环境互动/体位切换各方向分布。\n`;
-          if (userCardName) {
-            extra += `9. 【视角规则】${userCardName}=用户主视角。≥60%选项以[我]为出发点。其余选项标注其他角色如[${otherCardNames.join(']、[') || '其他角色'}]，各角色选项数大致相等。\n`;
-            extra += `10. 【口癖】措辞匹配角色风格。用户卡选项用第一人称动作(如"[我]挺腰"\"[我]抓住她头发")。\n`;
-          } else {
-            extra += `9. 多人(≥2角色): 选项含不同角色动作+角色间互动。≥2选项指向不同角色。\n`;
+          // ★ 叙事风格（变化频率：几乎不变化 → 紧随角色卡）
+          const narrativeStr = JSON.stringify(state.narrativeModule?.author_persona || {}, null, 2);
+          if (narrativeStr !== '{}') data += `\n### 叙事风格\n${narrativeStr}\n`;
+          // ★ 节拍信息（变化频率：仅节拍推进时追加，约2~3轮1次 → 置于稳定数据之后）
+          if (state.beatContextLog?.length) {
+            data += buildOutlineContext() + '\n';
+          } else if (state.outlineBeats?.length) {
+            const ci = state.currentBeatIndex || 0;
+            const cb = state.outlineBeats[ci];
+            if (cb) {
+              data += `\n### 当前节拍\n`;
+              data += `名称: ${cb.name}\n情色阶段: ${cb.erotic_phase}\n性里程碑: ${cb.sexual_milestone}\n射精时机: ${cb.ejaculation_timing || '【高潮时必射】'}\n`;
+              data += `关键动作: ${(cb.key_actions || []).join('; ')}\n`;
+              data += `禁跳到: ${(state.outlineBeats[ci + 1])?.name || '无'}\n`;
+            }
+          } else if (state.outline?.beats) {
+            const ci = state.currentBeatIndex || 0;
+            const cb = state.outline.beats[ci];
+            if (cb) {
+              data += `\n### 当前节拍\n`;
+              data += `名称: ${cb.name}\n情色阶段: ${cb.erotic_phase}\n性里程碑: ${cb.sexual_milestone}\n射精时机: ${cb.ejaculation_timing || '【高潮时必射】'}\n`;
+              data += `关键动作: ${(cb.key_actions || []).join('; ')}\n`;
+              data += `禁跳到: ${(state.outline.beats[ci + 1])?.name || '无'}\n`;
+            }
           }
-          extra += `11. 选项=动作简写，不是叙事。禁续写故事。禁输出非选项内容。\n`;
-        
-          extra += `\n【格式示例（需严格遵循）】\n`;
-          extra += `- [我]翻身骑上去，自己扭腰\n- [我]抓住她的头发拉近距离\n- [林姐]凑过来在你耳边低语\n- [我]把她抱到窗台上\n- [林姐]自己掰开给你看\n`;
-        
-          extra += `\n### 叙事风格\n${narrativeStr}`;
-        
-          // 场景快照
-          extra += sceneStr;
-        
-          // 大纲节拍
-          extra += beatStr;
-        
-          // 角色卡
-          extra += cardStr;
-        
-          // 用户偏好（命令式）
-          extra += `\n### 用户偏好\n`;
-          // 射精选项——无条件要求
-          if (prefs.cum) {
-            extra += `射精部位: ${prefs.cum}。近高潮选项导向此部位，选项必须明确谁射在何处。\n`;
-          } else {
-            extra += `射精规则: climax/buildup阶段选项必含射精动作。写清谁射、射在哪、射多少。示例: "[我]抵紧深处射出来" "[林姐]张嘴接住浓精"\n`;
+          // ★ 场景快照（变化频率：几乎每轮变化 → 置于最末尾，不影响前缀稳定性）
+          const ss = state.sceneState || {};
+          data += '\n### 场景状态\n';
+          data += `当前动作: ${ss.current_action || '无'}\n`;
+          data += `进度: ${ss.beat_progress || 0}/10\n`;
+          data += `里程碑完成: ${ss.milestone_completed ? '是' : '否'}\n`;
+          if (ss.character_positions && Object.keys(ss.character_positions).length > 0) {
+            data += `角色位置: ${JSON.stringify(ss.character_positions)}\n`;
           }
-          if (prefs.pace) extra += `节奏: ${prefs.pace}。慢玩→选项必含感官/环境/调情。均衡→动作/感官交替。激烈→体位切换/动作推进/高潮导向。不匹配→无效选项。\n`;
-          if (prefs.scenes) extra += `场景: ${prefs.scenes}。选项必含此场景。\n`;
-          if (prefs.play) extra += `玩法: ${prefs.play}。≥2选项含此。\n`;
-          if (prefs.position) extra += `体位: ${prefs.position}。≥1选项含此。\n`;
-          if (prefs.limits) extra += `限制: ${prefs.limits}。选项禁违反。\n`;
-          if (prefs.orgasm !== '无要求') extra += `高潮: ${prefs.orgasm}。选项须推进至高潮。\n`;
-          if (prefs.outlineLength) extra += `时长: ${prefs.outlineLength}。短篇→选项集中推高潮,禁中场休息/场景切换。长篇/史诗→允休息/二次勃起/场景切换/道具。\n`;
-        
-          extra += '\n【用词禁令】选项禁用以下医学/解剖术语：耻骨/括约肌/会阴/前列腺/子宫颈/海绵体/尿道/肛管/耻骨联合。改用动作描述替代。';
-          extra += '\n只输出选项。不输出任何其他内容。';
-        
-          return BASE_SYSTEM_PROMPT + extra;
+          return data;
         }
-        
-        
         function buildSummarySystemMessage() {
-          return BASE_SYSTEM_PROMPT + '\n=== compress | strict ===\n' +
-            '收到对话历史按以下层级压缩。禁输出非压缩内容。\n' +
-            '→ L1(近2轮4条): 原文完整输出, 标[原文], 一字不改。\n' +
-            '→ L2(次近3轮6条): 每轮→一段150-300字, 保留叙事风格+句长+感官密度, 禁退化为要点。\n' +
-            '→ L3(更早): 合并摘要, 每关键转折一句话, 丢弃过渡/重复描写/寒暄。\n' +
-            'keep | 身体: 穿着+裸露部位+体液位置量+敏感部位状态(勃起/湿润/红肿)\n' +
-            'keep | 空间: 谁在谁方位+身体接触点\n' +
-            'keep | 里程碑: 口交/手指进入/阴道插入/肛交/高潮→谁对谁+部位\n' +
-            'keep | 高潮: 每角色已高潮次数+方式+体液去向\n' +
-            'keep | 对话: 影响关系或剧情的一句原文\n' +
-            'keep | 硬限: 痛觉/不适/安全词/拒绝→精确保留, 一字不丢\n' +
-            'drop | 同角色同部位生理描写重复≥3次(仅留变化节点) | 元评论/系统提示/AI确认 | 非情色无关对话\n' +
-            'fmt | 时间序。近2轮→[原文]。其余→[压缩]。每角色状态快照一行, 角色名开头。禁解释。';
+          return BASE_SYSTEM_PROMPT + '\n=== compress_v2 | json ===\n' +
+            'MUST输出JSON数组。\n' +
+            'MUST_NOT修改已有block_id/timeframe/arc。\n' +
+            'MUST相邻同phase合并。\n' +
+            'MUST hard_limits精确保留。\n' +
+            '每个对象字段：block_id(num), timeframe(string), narrative_arc(string), character_states(object), milestones(array), current_phase(string), physical(object), key_dialogues(array), hard_limits(string)\n' +
+            '【格式示例】\n' +
+            '[用户] 选项内容。\n' +
+            '[叙事] 故事正文...\n' +
+            '→ [{"block_id":1,"narrative_arc":"...","character_states":{...}}]\n' +
+            '只输出JSON数组。禁markdown。禁额外文本。';
         }
         
         function buildTrainNarrativePrompt(material) {
@@ -2129,6 +2112,23 @@
           return resolved.join('\n');
         }
         function buildOutlineContext() {
+          // ★ 零字节抖动模式：从 beatContextLog 获取已冻结的不可变上下文
+          // 历史节拍标记为已完成，当前节拍标记为活跃
+          if (state.beatContextLog?.length) {
+            let result = '';
+            for (let i = 0; i < state.beatContextLog.length; i++) {
+              const isCurrent = i === state.beatContextLog.length - 1;
+              if (isCurrent) {
+                // 当前节拍：使用其自身标签（"仅执行此节拍"）
+                result += state.beatContextLog[i];
+              } else {
+                // 历史节拍：包装为已完成标记
+                result += '\n【已完成——以下节拍已执行完毕，仅作回顾，不在此轮执行】\n' + state.beatContextLog[i] + '\n\n';
+              }
+            }
+            return result;
+          }
+          // 回退模式（旧存档/首次初始化时兼容）
           // 优先使用 outlineBeats（新格式）
           if (state.outlineBeats?.length) {
             const currentBeat = state.outlineBeats[state.currentBeatIndex || 0];
@@ -2146,7 +2146,6 @@
               else ctx += '短句轰炸，每句一个画面，禁止心理活动，禁止完整对话。';
               ctx += '\n';
             }
-            // 限制key_actions到最多3条，防止AI一次性执行过多
             const actions = (currentBeat.key_actions || []).slice(0, 3);
             ctx += '关键动作（按顺序执行，完成当前即止）:\n' + actions.map((a, i) => `${i + 1}. ${a}`).join('\n') + '\n';
             ctx += `性里程碑: ${currentBeat.sexual_milestone || '无'}\n射精时机: ${currentBeat.ejaculation_timing || '【高潮时必射】'}\n地点引用: ${currentBeat.location_ref || '无'}\n`;
@@ -2157,7 +2156,6 @@
               ctx += `\n【下一步预览——仅供参考，禁止提前执行】\n即将进入: ${nextBeat.name}\n`;
             }
             ctx += '\n【节拍推进规则】完成当前节拍全部关键动作和性里程碑后，调用 scene_manager action="advance" 推进到下一节拍。禁止在本轮输出中跨越到下一节拍。\n';
-            // global_rules
             const globalRules = (state.outline?.global_rules) || (currentBeat._global_rules) || [];
             if (globalRules.length) ctx += '\n【全局规则——绝对服从】\n' + globalRules.map(r => `· ${r}`).join('\n') + '\n';
             return ctx;
@@ -2191,6 +2189,39 @@
           if (state.outline.global_rules?.length) ctx += '\n【全局规则——绝对服从】\n' + state.outline.global_rules.map(r => `· ${r}`).join('\n') + '\n';
           return ctx;
         }
+        // ★ 节拍不可变快照生成器：在节拍进入时调用，捕获当前完整上下文
+        //   返回的字符串绝对不可修改，只通过 beatContextLog 追加
+        //   resolveCardFields() 在快照生成时冻结角色卡数据，此后永不变化
+        function buildBeatContextSnapshot(beat, index, total, nextBeat) {
+          if (!beat) return '';
+          // ★ 在快照生成时冻结角色卡字段值，保证后续轮次读取同一份数据
+          const resolvedFields = resolveCardFields(beat.required_card_fields || []);
+          let ctx = '';
+          ctx += '【当前场景节拍——仅执行此节拍，完成即止】\n';
+          ctx += `名称: ${beat.name}\n情色阶段: ${beat.erotic_phase}\n张力等级: ${beat.tension_level || '?'}/10\n`;
+          if (beat.phase_writing_rule) {
+            ctx += `写作规则: ${beat.phase_writing_rule}\n`;
+          } else {
+            ctx += '写作规则: ';
+            if (beat.tension_level <= 3) ctx += '长句铺氛围，动作后跟感官细节。';
+            else if (beat.tension_level <= 6) ctx += '中等句长，动作与身体反应交替。';
+            else if (beat.tension_level <= 8) ctx += '句子缩短，每个动作紧跟一个生理反应。';
+            else ctx += '短句轰炸，每句一个画面，禁止心理活动，禁止完整对话。';
+            ctx += '\n';
+          }
+          const actions = (beat.key_actions || []).slice(0, 3);
+          ctx += '关键动作（按顺序执行，完成当前即止）:\n' + actions.map((a, i) => `${i + 1}. ${a}`).join('\n') + '\n';
+          ctx += `性里程碑: ${beat.sexual_milestone || '无'}\n射精时机: ${beat.ejaculation_timing || '【高潮时必射】'}\n地点引用: ${beat.location_ref || '无'}\n`;
+          ctx += `【预载角色卡数据——无需调工具查询】\n${resolvedFields || '无'}\n`;
+          ctx += `需要激活的世界书条目: ${(beat.required_world_entries || []).join(', ') || '无'}\n`;
+          if (nextBeat) {
+            ctx += `\n【下一步预览——仅供参考，禁止提前执行】\n即将进入: ${nextBeat.name}\n`;
+          }
+          ctx += '\n【节拍推进规则】完成当前节拍全部关键动作和性里程碑后，调用 scene_manager action="advance" 推进到下一节拍。禁止在本轮输出中跨越到下一节拍。\n';
+          const globalRules = beat._global_rules || [];
+          if (globalRules.length) ctx += '\n【全局规则——绝对服从】\n' + globalRules.map(r => `· ${r}`).join('\n') + '\n';
+          return ctx;
+        }
         
         function doAdvanceBeat() {
           if (!state.outlineBeats || !state.outlineBeats.length) {
@@ -2202,11 +2233,18 @@
           }
           const nextIdx = (state.currentBeatIndex || 0) + 1;
           if (nextIdx < state.outlineBeats.length) {
-            state.currentBeatIndex = nextIdx;
+            // ★ 在切换到下一节拍前，对下一节拍生成不可变快照并追加到 beatContextLog
+            //   此快照一经生成不可修改，后续 buildOutlineContext() 从 beatContextLog 拼接所有历史记录
+            //   实现：旧节拍标记为已完成，当前节拍标记为活跃——全字节零变动，只追加
             const nextBeat = state.outlineBeats[nextIdx];
+            const nextNextBeat = state.outlineBeats[nextIdx + 1] || null;
+            if (nextBeat) {
+              const snapshot = buildBeatContextSnapshot(nextBeat, nextIdx, state.outlineBeats.length, nextNextBeat);
+              state.beatContextLog.push(snapshot);
+            }
+            state.currentBeatIndex = nextIdx;
             const msg = `场景节拍推进 → 第${nextIdx + 1}/${state.outlineBeats.length}节: ${nextBeat?.name || '未命名'}`;
             debugLog(msg);
-            // 节拍信息在请求时由 buildOutlineContext() 实时提供，不注入 history——保持 KV 前缀稳定
             saveState();
           } else {
             debugLog('所有节拍已完成');
@@ -2260,6 +2298,15 @@
             const _lo = {'短篇':'5~8节拍','中篇':'8~15节拍','长篇':'15~25节拍','史诗':'25~40节拍'};
             msg += `  outline=${p.outlineLength} (${_lo[p.outlineLength]||''})\n`;
           }
+          // ★ outlineContextLog — 追加风：每次重新生成大纲时，旧大纲摘要追加到此处
+          //   让模型看到之前生成过什么，避免重复方向，实现"只追加不改旧"的上下文积累
+          if (state.outlineContextLog?.length) {
+            msg += '\n→ prev_gen | 之前生成的大纲（供参考，本次请生成新的不同大纲）\n';
+            for (const entry of state.outlineContextLog) {
+              msg += `  · ${entry}\n`;
+            }
+            msg += '\n';
+          }
           msg += '\n禁输出JSON之外内容。';
           return msg;
         }
@@ -2303,9 +2350,6 @@
           }
         };
         
-        /* ================== API调用（真流式+工具循环） ================== */
-        
-        /* ================== 按Agent动态工具注入 ================== */
         function getToolsForAgent(agentType) {
           // 基准工具：所有agent都可用
           const baseTools = [MEMORY_TOOL];
@@ -2673,24 +2717,16 @@
           const lastAssistant = [...state.history].reverse().find(m => m.role === 'assistant');
           if (!lastAssistant) return ['[我]继续', '[我]换个姿势', '[我]温柔一些'];
         
-          // 结构化场景快照 + 最近1500字
-          const plotContext = lastAssistant.content.slice(-1500);
-          const sceneSnap = JSON.stringify(state.sceneState || {}, null, 1);
-          const beatInfo = state.outlineBeats?.length
-            ? `当前节拍: ${(state.outlineBeats[state.currentBeatIndex || 0])?.name || '无'} (${(state.currentBeatIndex||0)+1}/${state.outlineBeats.length})`
-            : (state.outline?.title || '');
-        
+          // ★ 两消息分层结构：
+          //   [0] system: 规则（纯规则，输入不变则字节稳定）
+          //   [1] user:   数据层（节拍/场景/角色卡/叙事风格，含全部上下文）
           const optionsSys = buildOptionsSystemMessage();
-          let userMsg = `### 场景快照\n${sceneSnap}\n\n### 最近剧情（仅用于生成选项，请勿续写）\n${plotContext}`;
-          if (beatInfo) {
-            userMsg += `\n\n### 大纲进度\n${beatInfo}`;
-          }
-          userMsg += '\n\n基于以上剧情和大纲，请列出3-5个符合角色设定和偏好的后续行动选项。';
-        
+          const dataMsg = buildOptionsDataMessage();
           const messages = [
             { role: 'system', content: optionsSys },
-            { role: 'user', content: userMsg }
+            { role: 'user', content: dataMsg }
           ];
+
           for (let retry = 0; retry < 3; retry++) {
             try {
               if (retry > 0) debugLog(`[选项] 输出无效，重试第${retry}次`);
@@ -2735,6 +2771,10 @@
           state.sceneState = { character_positions: {}, current_action: '', beat_progress: 0, milestone_completed: false };
           // 重置压缩阈值基准，避免旧游戏的大 prompt 值污染新游戏
           state.lastPromptTokens = 0;
+          // 清除旧节拍上下文日志，确保新游戏从空日志开始
+          state.beatContextLog = [];
+          // ★ 清除旧游戏的摘要/大纲日志，防止脏数据污染新游戏（角色卡/世界书是用户配置，不清）
+          state.summaryBlocks = []; state.outlineTitle = ''; state.outlineBeats = []; state.outlineContextLog = [];
           const activeCards = getActiveCards();
           if (!activeCards.length) { toast('请先导入角色卡'); return; }
           showLoading(); updateLoading('正在生成大纲...', 5);
@@ -2812,6 +2852,16 @@ ${_existing}
             updateLoading('大纲已生成...', 100);
             saveState();
             hideLoading();
+            // ★ 初始化节拍上下文日志：对第0节拍生成不可变快照，后续节拍由 doAdvanceBeat 追加
+            //   确保 buildOutlineContext() 首次调用时已经能从 beatContextLog 获取数据
+            if (state.outlineBeats?.length && !state.beatContextLog.length) {
+              const nextBeat = state.outlineBeats.length > 1 ? state.outlineBeats[1] : null;
+              state.beatContextLog.push(
+                buildBeatContextSnapshot(state.outlineBeats[0], 0, state.outlineBeats.length, nextBeat)
+              );
+              debugLog('[beatContextLog] 已快照第0节拍: ' + (state.outlineBeats[0]?.name || ''));
+            }
+
             const narrativeSys = buildNarrativeSystemMessage();
             const storyMessages = [
               { role: 'system', content: narrativeSys }
@@ -2887,7 +2937,6 @@ ${_existing}
           if (!state.gameStarted) { toast('游戏尚未开始'); return; }
           if (isProcessing) { toast('请等待当前生成完成'); return; }
           isProcessing = true;
-        
           // 解析 [主语] 前缀
           let displayText = optText;
           let subjectName = '你';
@@ -2928,12 +2977,12 @@ ${_existing}
             let userCtx = '';
             if (state.outlineBeats?.length || state.outline) userCtx += buildOutlineContext() + '\n';
             if (userCtx) fullMessages.push({ role: 'user', content: userCtx });
-            // 压缩后的历史摘要（时间顺序：摘要最早 → 保留原文较新 → 当前输入最新）
+            // 保留的原始对话（仅最新1轮：最新用户选项+最新剧情正文）
+            fullMessages.push(...chatMessages.slice(-2));
+            // 压缩后的历史摘要（放在保留消息之后，作为背景上下文）
             if (state.summaryBlocks.length) {
               fullMessages.push({ role: 'user', content: '=== 历史摘要 ===\n' + state.summaryBlocks.join('\n---\n') });
             }
-            // 保留的原始对话（参与压缩的历史）
-            fullMessages.push(...chatMessages);
             streamMsgEl = document.createElement('div');
             streamMsgEl.className = 'story-msg';
             streamMsgEl.innerHTML = '<div class="msg-content"></div>';
@@ -3008,12 +3057,12 @@ ${_existing}
             let userCtx = '';
             if (state.outlineBeats?.length || state.outline) userCtx += buildOutlineContext() + '\n';
             if (userCtx) fullMessages.push({ role: 'user', content: userCtx });
-            // 压缩后的历史摘要（时间顺序：摘要最早 → 保留原文较新 → 当前输入最新）
+            // 保留的原始对话（仅最新1轮：最新用户选项+最新剧情正文）
+            fullMessages.push(...chat.slice(-2));
+            // 压缩后的历史摘要（放在保留消息之后，作为背景上下文）
             if (state.summaryBlocks.length) {
               fullMessages.push({ role: 'user', content: '=== 历史摘要 ===\n' + state.summaryBlocks.join('\n---\n') });
             }
-            // 保留的原始对话（参与压缩的历史）
-            fullMessages.push(...chat);
             streamMsgEl = document.createElement('div');
             streamMsgEl.className = 'story-msg';
             streamMsgEl.innerHTML = '<div class="msg-content"></div>';
@@ -3086,27 +3135,43 @@ ${_existing}
         
         
         async function checkAndSliceHistory() {
-          const threshold = state.compressionThreshold || 664000;
-          // 估算本轮 prompt 总大小（上轮 API 精确值 + 新增内容）
+          const threshold = state.compressionThreshold || 900000;
           const estimatedPrompt = estimatePromptGrowth();
           if (estimatedPrompt < threshold) return;
           const chatMessages = state.history.filter(m => m.role !== 'system');
           if (!chatMessages.length) return;
-          const KEEP_EXACT = 6;
-          if (chatMessages.length <= KEEP_EXACT + 2) return;
+          const KEEP_EXACT = 2;
+          if (chatMessages.length <= KEEP_EXACT) return;
           debugLog(`预估 prompt ${(estimatedPrompt/1000).toFixed(0)}K ≥ 阈值 ${(threshold/1000).toFixed(0)}K，触发压缩...`);
           const exactMessages = chatMessages.slice(-KEEP_EXACT);
           const toSummarize = chatMessages.slice(0, -KEEP_EXACT);
           if (!toSummarize.length) return;
           const summarySys = buildSummarySystemMessage();
-          const feedText = toSummarize.map(m => `[${m.role}]: ${m.content}`).join('\n');
-          const summaryReq = { role: 'user', content: '=== 待压缩历史 ===\n' + feedText + '\n\n=== 指令 ===\n按系统消息中的层级压缩。最近2轮保留原文，其余逐层压缩。' };
+          // 程序层提取：仅保留 user/assistant 纯文本，标签标识消息来源
+          const cleanMessages = toSummarize
+            .filter(m => m.role === 'user' || m.role === 'assistant')
+            .map(m => `[${m.role === 'user' ? '用户' : '叙事'}]: ${m.content || ''}`)
+            .join('\n');
+          let feedText = '';
+          if (state.summaryBlocks.length > 0) {
+            feedText += '=== 已有剧情摘要 ===\n' + state.summaryBlocks.join('\n---\n') + '\n\n';
+          }
+          feedText += '=== 待压缩原始对话 ===\n' + cleanMessages;
+          const summaryReq = { role: 'user', content: feedText };
           const summary = await callAPI(
             [{ role: 'system', content: summarySys }, summaryReq],
             { maxTokens: state.apiMaxTokens, temperature: 0.3, trackUsage: false }
           );
-          const label = state.summaryBlocks.length === 0 ? '早期剧情摘要' : `第${state.summaryBlocks.length + 1}次压缩`;
-          state.summaryBlocks.push(`${label}:\n${summary}`);
+          let cleanSummary = summary.trim();
+          if (cleanSummary.startsWith('```')) {
+            cleanSummary = cleanSummary.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '');
+          }
+          try {
+            JSON.parse(cleanSummary);
+          } catch (e) {
+            cleanSummary = JSON.stringify({ block_id: state.summaryBlocks.length + 1, type: 'compressed_fallback', content: cleanSummary });
+          }
+          state.summaryBlocks.push(cleanSummary);
           const systemMessages = state.history.filter(m => m.role === 'system');
           state.history = [...systemMessages, ...exactMessages];
           state.lastPromptTokens = Math.floor(estimatedPrompt * 0.3);
@@ -3121,7 +3186,7 @@ ${_existing}
           document.getElementById('setApiKey').value = state.apiKey;
           document.getElementById('setReasoningEffort').value = state.reasoningEffort || 'high';
           document.getElementById('setApiMaxTokens').value = state.apiMaxTokens || 384000;
-          document.getElementById('setCompressionThreshold').value = state.compressionThreshold || 664000;
+          document.getElementById('setCompressionThreshold').value = state.compressionThreshold || 900000;
           updateCumulativeDisplay();
           renderModelList();
           document.getElementById('narrativeModuleEditor').value = JSON.stringify(state.narrativeModule, null, 2);
@@ -3229,8 +3294,15 @@ ${_existing}
           if (expAll || expWorldBooks) exportData.worldBooks = state.worldBooks;
           if (expAll || expOutline) {
             exportData.outline = state.outline;
+            exportData.outlineBeats = state.outlineBeats;
+            exportData.outlineTitle = state.outlineTitle;
+            exportData.currentBeatIndex = state.currentBeatIndex;
             exportData.history = state.history;
             exportData.summaryBlocks = state.summaryBlocks;
+            exportData.beatContextLog = state.beatContextLog;
+            exportData.outlineContextLog = state.outlineContextLog;
+            exportData.sceneState = state.sceneState;
+            exportData.currentOptions = state.currentOptions;
           }
           if (expAll || expPrefs) exportData.preferences = state.preferences;
           const name = expAll ? '全部数据' : '部分数据';
@@ -3264,9 +3336,11 @@ ${_existing}
               if (data.narrativePresets) summary += '• 叙事档位<br/>';
               if (data.cards) summary += `• 角色卡 (${Array.isArray(data.cards) ? data.cards.length : 0}张)<br/>`;
               if (data.worldBooks) summary += `• 世界书 (${Array.isArray(data.worldBooks) ? data.worldBooks.length : 0}本)<br/>`;
-              if (data.outline) summary += '• 大纲<br/>';
+              if (data.outline || data.outlineBeats) summary += '• 大纲<br/>';
               if (data.history) summary += '• 剧情历史<br/>';
               if (data.summaryBlocks) summary += '• 摘要切片<br/>';
+              if (data.outlineContextLog) summary += `• 大纲生成历史 (${data.outlineContextLog.length}条)<br/>`;
+              if (data.beatContextLog) summary += `• 节拍上下文日志 (${data.beatContextLog.length}条)<br/>`;
               if (data.preferences) summary += '• 偏好设置<br/>';
               if (!summary.includes('•')) summary = '无法识别有效数据。';
               document.getElementById('importSummary').innerHTML = summary + '<br/><span style="color:#c0392b;">导入将覆盖当前对应数据。</span>';
@@ -3287,6 +3361,14 @@ ${_existing}
             if (data.cards) state.cards = data.cards;
             if (data.worldBooks) state.worldBooks = data.worldBooks;
             if (data.outline) state.outline = data.outline;
+            if (data.outlineBeats) state.outlineBeats = data.outlineBeats;
+            if (data.outlineTitle) state.outlineTitle = data.outlineTitle;
+            if (data.sceneState) state.sceneState = data.sceneState;
+            if (data.currentBeatIndex !== undefined) state.currentBeatIndex = data.currentBeatIndex;
+            if (data.beatContextLog) state.beatContextLog = data.beatContextLog;
+            else state.beatContextLog = [];
+            if (data.outlineContextLog) state.outlineContextLog = data.outlineContextLog;
+            else state.outlineContextLog = [];
             if (data.history) state.history = data.history;
             if (data.summaryBlocks) state.summaryBlocks = data.summaryBlocks;
             if (data.preferences) Object.assign(state.preferences, data.preferences);
@@ -3305,7 +3387,6 @@ ${_existing}
           document.getElementById('importConfirmModal').classList.add('hidden');
           state.pendingImportData = null;
         });
-        
         document.getElementById('importConfirmNoBtn').addEventListener('click', () => {
           document.getElementById('importConfirmModal').classList.add('hidden');
           state.pendingImportData = null;
@@ -3402,7 +3483,7 @@ ${_existing}
             state.model = document.getElementById('apiModelSelect').value;
             state.reasoningEffort = document.getElementById('apiReasoningEffort').value;
             state.apiMaxTokens = parseInt(document.getElementById('apiMaxTokens').value) || 384000;
-            state.compressionThreshold = parseInt(document.getElementById('apiCompressionThreshold').value) || 664000;
+            state.compressionThreshold = parseInt(document.getElementById('apiCompressionThreshold').value) || 900000;
             if (!state.models.includes(state.model)) state.models.push(state.model);
             saveState();
             document.getElementById('apiSetupModal').classList.add('hidden');
@@ -3502,8 +3583,8 @@ ${_existing}
               state.summaryBlocks = [];
               state.gameStarted = false;
               state.currentOptions = [];
-              state.lastPromptTokens = 0;
-              state.sceneState = { character_positions: {}, current_action: '', beat_progress: 0, milestone_completed: false };
+              state.beatContextLog = []; // ★ 清除节拍上下文日志，新游戏重新生成
+              state.outlineContextLog = []; state.outlineTitle = ''; state.outlineBeats = []; // ★ 清除大纲/节拍标题，避免旧数据污染
               updateUI();
               saveState();
             }
@@ -3702,10 +3783,21 @@ ${_existing}
         
           document.getElementById('saveOutlineBtn').addEventListener('click', () => {
             const raw = document.getElementById('outlineEditor').value.trim();
-            try { state.outline = JSON.parse(raw); state.currentBeatIndex = 0; } catch(e) { state.outline = raw; }
+            try {
+              const parsed = JSON.parse(raw);
+              // ★ 统一处理 outlineBeats 格式（兼容 startGame 工具模式 + 手动编辑）
+              if (parsed.beats) {
+                state.outlineBeats = parsed.beats;
+                state.outlineTitle = parsed.title || '';
+                state.outline = '';
+              } else {
+                state.outline = parsed;
+              }
+              state.currentBeatIndex = 0;
+            } catch(e) { state.outline = raw; }
             saveState(); toast('已保存');
           });
-          document.getElementById('clearOutlineBtn').addEventListener('click', () => { state.outline = ''; state.currentBeatIndex = 0; document.getElementById('outlineEditor').value = ''; saveState(); });
+          document.getElementById('clearOutlineBtn').addEventListener('click', () => { state.outline = ''; state.outlineBeats = []; state.outlineTitle = ''; state.currentBeatIndex = 0; state.beatContextLog = []; state.outlineContextLog = []; document.getElementById('outlineEditor').value = ''; saveState(); });
           document.getElementById('regenerateOutlineBtn').addEventListener('click', async () => {
             const activeCards = getActiveCards();
             if (!activeCards.length) { toast('没有激活的角色卡'); return; }
@@ -3713,6 +3805,16 @@ ${_existing}
             updateLoading('正在生成大纲...', 5);
             startFakeProgress(5);
             try {
+              // ★ 记录旧大纲到 outlineContextLog（追加风——每次生成追加一条，保留历史上下文）
+              state.outlineContextLog = state.outlineContextLog || [];
+              const prevOutlineStr = state.outlineBeats?.length
+                ? `[之前的大纲] ${state.outlineTitle || '无标题'} — ${state.outlineBeats.length}个节拍`
+                : (typeof state.outline === 'string' ? state.outline : (state.outline?.title || '无大纲'));
+              if (prevOutlineStr) state.outlineContextLog.push(prevOutlineStr);
+              // 清除旧节拍日志——大纲重建后旧快照不再有效
+              state.beatContextLog = [];
+              state.currentBeatIndex = 0;
+            
               const outlineSys = buildOutlineSystemMessage();
               const outlineUserMsg = buildOutlineUserMessage();
               let outline = '';
@@ -3726,9 +3828,28 @@ ${_existing}
               updateLoading('正在生成大纲...', 100);
               const jsonMatch = outline.match(/\{[\s\S]*\}/);
               if (jsonMatch) {
-                try { state.outline = JSON.parse(jsonMatch[0]); state.currentBeatIndex = 0; } catch(e) { state.outline = outline; }
+                try {
+                  const parsed = JSON.parse(jsonMatch[0]);
+                  // ★ 统一写入 outlineBeats 格式（与 startGame 工具模式一致）
+                  if (parsed.beats) {
+                    state.outlineBeats = parsed.beats;
+                    state.outlineTitle = parsed.title || '';
+                  } else {
+                    state.outline = parsed;
+                  }
+                  state.currentBeatIndex = 0;
+                  // ★ 生成 beat 0 快照，确保 buildOutlineContext() 能从 beatContextLog 读取
+                  if (state.outlineBeats?.length && !state.beatContextLog.length) {
+                    const nextBeat = state.outlineBeats.length > 1 ? state.outlineBeats[1] : null;
+                    state.beatContextLog.push(
+                      buildBeatContextSnapshot(state.outlineBeats[0], 0, state.outlineBeats.length, nextBeat)
+                    );
+                  }
+                } catch(e) { state.outline = outline; }
               } else { state.outline = outline; }
-              document.getElementById('outlineEditor').value = typeof state.outline === 'object' ? JSON.stringify(state.outline, null, 2) : state.outline;
+              document.getElementById('outlineEditor').value = state.outlineBeats?.length
+                ? JSON.stringify({ title: state.outlineTitle, beats: state.outlineBeats }, null, 2)
+                : (typeof state.outline === 'object' ? JSON.stringify(state.outline, null, 2) : state.outline);
               saveState(); hideLoading(); toast('大纲已重新生成');
             } catch(e) { hideLoading(); toast('失败:'+e.message); }
           });
@@ -3746,7 +3867,7 @@ ${_existing}
             saveState();
           });
           document.getElementById('setCompressionThreshold').addEventListener('change', e => {
-            state.compressionThreshold = parseInt(e.target.value) || 664000;
+            state.compressionThreshold = parseInt(e.target.value) || 900000;
             saveState();
           });
         
@@ -4105,8 +4226,12 @@ ${_existing}
               state.outline = ''; state.history = []; state.gameStarted = false; state.summaryBlocks = []; state.currentOptions = [];
               state.lastPromptTokens = 0;
               state.sceneState = { character_positions: {}, current_action: '', beat_progress: 0, milestone_completed: false };
-              state.activeCards = [];
+              // activeCards 由 rstCards 分支处理，此处不清
+              state.beatContextLog = []; // ★ 清除节拍上下文日志
+              state.outlineContextLog = []; // ★ 清除大纲上下文日志
+              state.outlineTitle = ''; state.outlineBeats = []; // ★ 清除大纲标题和节拍列表
             }
+
             if (chk('rstAll') || chk('rstCards')) {
               state.cards = []; state.activeCards = [];
             }
@@ -4283,6 +4408,7 @@ ${_existing}
               outlineTitle: state.outlineTitle,
               sceneState: state.sceneState,
               currentBeatIndex: state.currentBeatIndex,
+              beatContextLog: state.beatContextLog,   // ★ 节拍上下文日志快照
               historyLength: state.history.length,
               cumulativeTokens: state.cumulativeTokens
             };
@@ -4304,14 +4430,14 @@ ${_existing}
         if (!state.apiMaxTokens) state.apiMaxTokens = 384000;
         if (state.cumulativeTokens === undefined) state.cumulativeTokens = 0;
         if (!state.lastPromptTokens && state.lastPromptTokens !== 0) state.lastPromptTokens = 0;
-        if (!state.compressionThreshold) state.compressionThreshold = 664000;
+          if (!state.compressionThreshold) state.compressionThreshold = 900000;
         if (!state.narrativeModule) state.narrativeModule = JSON.parse(JSON.stringify(DEFAULT_NARRATIVE_MODULE));
         if (!state.activeCards) state.activeCards = [];
         if (!state.currentOptions) state.currentOptions = [];
         if (!state.worldBooks) state.worldBooks = [];
           document.getElementById('apiReasoningEffort').value = state.reasoningEffort || 'high';
           document.getElementById('apiMaxTokens').value = state.apiMaxTokens || 384000;
-          document.getElementById('apiCompressionThreshold').value = state.compressionThreshold || 664000;
+          document.getElementById('apiCompressionThreshold').value = state.compressionThreshold || 900000;
         
           document.getElementById('apiBaseUrl').value = state.apiBaseUrl;
           document.getElementById('apiKey').value = state.apiKey;
